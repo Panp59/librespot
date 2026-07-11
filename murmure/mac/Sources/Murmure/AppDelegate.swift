@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
@@ -17,11 +18,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var meetingMode: String? // "in_person" | "remote", nil = pas de réunion
     private var meetingDir: URL?
 
+    // Annulation de dictée (touche Échap pendant l'enregistrement).
+    private var escapeMonitors: [Any] = []
+    private var dictationCancelled = false
+
+    // Préférences.
+    private var soundsEnabled = UserDefaults.standard.object(forKey: "SoundsEnabled") as? Bool ?? true
+    private var autoLanguage = UserDefaults.standard.bool(forKey: "AutoLanguage")
+
     // Éléments de menu mis à jour dynamiquement.
     private var backendStatusItem: NSMenuItem!
     private var startInPersonItem: NSMenuItem!
     private var startRemoteItem: NSMenuItem!
     private var stopMeetingItem: NSMenuItem!
+    private var soundsItem: NSMenuItem!
+    private var autoLanguageItem: NSMenuItem!
+    private var loginItem: NSMenuItem!
 
     private var dictationFileURL: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("murmure-dictation.wav")
@@ -67,9 +79,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ))
         menu.addItem(.separator())
 
-        let hint = NSMenuItem(title: "Dictée : maintenir ⌥ droite", action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(title: "Dictée : maintenir ⌥ droite (Échap pour annuler)", action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
+
+        soundsItem = NSMenuItem(title: "Sons de dictée", action: #selector(toggleSounds), keyEquivalent: "")
+        soundsItem.state = soundsEnabled ? .on : .off
+        menu.addItem(soundsItem)
+
+        autoLanguageItem = NSMenuItem(
+            title: "Détection automatique de la langue",
+            action: #selector(toggleAutoLanguage), keyEquivalent: ""
+        )
+        autoLanguageItem.state = autoLanguage ? .on : .off
+        menu.addItem(autoLanguageItem)
         menu.addItem(.separator())
 
         startInPersonItem = NSMenuItem(
@@ -95,6 +118,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(openOutputFolder), keyEquivalent: "o"
         ))
         menu.addItem(.separator())
+
+        loginItem = NSMenuItem(
+            title: "Lancer Murmure à l'ouverture de session",
+            action: #selector(toggleLaunchAtLogin), keyEquivalent: ""
+        )
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(loginItem)
         menu.addItem(NSMenuItem(title: "Quitter Murmure", action: #selector(quit), keyEquivalent: "q"))
 
         for item in menu.items where item.action != nil {
@@ -152,7 +182,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !dictationMic.isRecording else { return }
         do {
             try dictationMic.start(to: dictationFileURL)
-            hud.show("🎙️ Je t'écoute…")
+            dictationCancelled = false
+            installEscapeMonitors()
+            playSound("Tink")
+            hud.show("🎙️ Je t'écoute… (Échap pour annuler)")
         } catch {
             hud.show("⚠️ Micro indisponible")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.hud.hide() }
@@ -160,6 +193,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func dictationKeyUp() {
+        removeEscapeMonitors()
+        guard !dictationCancelled else { return }
         guard let (url, duration) = dictationMic.stop() else { return }
         // Appui trop bref : probablement involontaire.
         guard duration > 0.35 else {
@@ -167,11 +202,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         hud.show("⏳ Transcription…")
-        backend.dictate(audioURL: url) { [weak self] result in
+        backend.dictate(audioURL: url, language: autoLanguage ? "auto" : nil) { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let text) where !text.isEmpty:
                 self.hud.hide()
+                self.playSound("Pop")
                 TextInserter.insertAtCursor(text)
             case .success:
                 self.hud.show("🤔 Rien entendu")
@@ -182,6 +218,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
             }
         }
+    }
+
+    /// Échap pendant l'enregistrement : on jette la dictée en cours.
+    private func installEscapeMonitors() {
+        let handler: (NSEvent) -> Void = { [weak self] event in
+            if event.keyCode == 53 { self?.cancelDictation() }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: handler) {
+            escapeMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in
+            handler(event)
+            return event.keyCode == 53 ? nil : event
+        }) {
+            escapeMonitors.append(local)
+        }
+    }
+
+    private func removeEscapeMonitors() {
+        for monitor in escapeMonitors {
+            NSEvent.removeMonitor(monitor)
+        }
+        escapeMonitors = []
+    }
+
+    private func cancelDictation() {
+        guard dictationMic.isRecording else { return }
+        dictationCancelled = true
+        removeEscapeMonitors()
+        _ = dictationMic.stop()
+        playSound("Bottle")
+        hud.show("Dictée annulée")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.hud.hide() }
+    }
+
+    private func playSound(_ name: String) {
+        guard soundsEnabled else { return }
+        NSSound(named: name)?.play()
     }
 
     // MARK: - Réunions
@@ -358,6 +432,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         defaults.set(url.path, forKey: "BackendDir")
         return url
+    }
+
+    // MARK: - Préférences
+
+    @objc private func toggleSounds() {
+        soundsEnabled.toggle()
+        soundsItem.state = soundsEnabled ? .on : .off
+        UserDefaults.standard.set(soundsEnabled, forKey: "SoundsEnabled")
+    }
+
+    @objc private func toggleAutoLanguage() {
+        autoLanguage.toggle()
+        autoLanguageItem.state = autoLanguage ? .on : .off
+        UserDefaults.standard.set(autoLanguage, forKey: "AutoLanguage")
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            showAlert(title: "Impossible de modifier le lancement automatique",
+                      message: error.localizedDescription)
+        }
+        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
     // MARK: - Divers

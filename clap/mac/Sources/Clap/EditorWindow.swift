@@ -19,6 +19,8 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
     private var engine: PreviewEngine?
     private var renderer: Renderer?
     private var playTimer: Timer?
+    private var keyMonitor: Any?
+    private var backgroundImagePath: String?
 
     // Aperçu.
     private let previewView = NSImageView()
@@ -277,6 +279,101 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
             control.target = self
             control.action = action
         }
+
+        restoreSettings()
+
+        // Raccourcis clavier : espace = lecture, ←/→ = image par image
+        // (avec ⇧ : par seconde).
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window = self.window,
+                  window.isKeyWindow, window.attachedSheet == nil
+            else { return event }
+            let bigStep = event.modifierFlags.contains(.shift)
+            switch event.keyCode {
+            case 49: // espace
+                self.togglePlayback()
+                return nil
+            case 123: // ←
+                self.step(by: bigStep ? -1.0 : -1.0 / 30.0)
+                return nil
+            case 124: // →
+                self.step(by: bigStep ? 1.0 : 1.0 / 30.0)
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func step(by delta: Double) {
+        stopPlaybackIfNeeded()
+        playhead = min(max(0, playhead + delta), data.duration)
+        refreshPreview(exact: true)
+    }
+
+    // MARK: - Préférences mémorisées
+
+    private static let defaultsPrefix = "Clap.editor."
+
+    private func persistSettings() {
+        let d = UserDefaults.standard
+        let p = Self.defaultsPrefix
+        d.set(formatPopup.indexOfSelectedItem, forKey: p + "formatIndex")
+        d.set(backgroundPopup.indexOfSelectedItem, forKey: p + "backgroundIndex")
+        if let rgb = colorWell.color.usingColorSpace(.deviceRGB) {
+            d.set(
+                [Double(rgb.redComponent), Double(rgb.greenComponent),
+                 Double(rgb.blueComponent)],
+                forKey: p + "solidColor"
+            )
+        }
+        d.set(backgroundImagePath, forKey: p + "imagePath")
+        d.set(paddingSlider.doubleValue, forKey: p + "padding")
+        d.set(cornerSlider.doubleValue, forKey: p + "corners")
+        d.set(zoomSlider.doubleValue, forKey: p + "zoom")
+        d.set(cursorSlider.doubleValue, forKey: p + "cursor")
+        d.set(webcamCornerPopup.indexOfSelectedItem, forKey: p + "webcamCorner")
+        d.set(webcamShapePopup.indexOfSelectedItem, forKey: p + "webcamShape")
+        d.set(webcamSizeSlider.doubleValue, forKey: p + "webcamSize")
+    }
+
+    private func restoreSettings() {
+        let d = UserDefaults.standard
+        let p = Self.defaultsPrefix
+        guard d.object(forKey: p + "padding") != nil else { return } // premier lancement
+
+        formatPopup.selectItem(at: min(max(0, d.integer(forKey: p + "formatIndex")), OutputFormat.all.count - 1))
+        if let components = d.array(forKey: p + "solidColor") as? [Double], components.count == 3 {
+            solidColor = NSColor(
+                calibratedRed: components[0], green: components[1],
+                blue: components[2], alpha: 1
+            )
+            colorWell.color = solidColor
+        }
+        if let path = d.string(forKey: p + "imagePath"),
+           let image = NSImage(contentsOfFile: path)?
+               .cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            backgroundImagePath = path
+            backgroundImage = image
+        }
+        let presetCount = BackgroundPreset.all.count
+        var backgroundIndex = d.integer(forKey: p + "backgroundIndex")
+        if backgroundIndex == presetCount + 2 && backgroundImage == nil {
+            backgroundIndex = 0 // l'image mémorisée n'existe plus
+        }
+        if backgroundIndex >= 0 && backgroundIndex < backgroundPopup.numberOfItems {
+            backgroundPopup.selectItem(at: backgroundIndex)
+        }
+        colorWell.isHidden = backgroundIndex != presetCount + 1
+        paddingSlider.doubleValue = d.double(forKey: p + "padding")
+        cornerSlider.doubleValue = d.double(forKey: p + "corners")
+        zoomSlider.doubleValue = d.double(forKey: p + "zoom")
+        cursorSlider.doubleValue = d.double(forKey: p + "cursor")
+        webcamCornerPopup.selectItem(at: min(max(0, d.integer(forKey: p + "webcamCorner")), WebcamCorner.allCases.count - 1))
+        webcamShapePopup.selectItem(at: min(max(0, d.integer(forKey: p + "webcamShape")), WebcamShape.allCases.count - 1))
+        webcamSizeSlider.doubleValue = d.double(forKey: p + "webcamSize")
+
+        settingsChanged()
     }
 
     // MARK: - Moteur d'aperçu
@@ -367,6 +464,13 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
         timelineView.selectedSegmentID = id
     }
 
+    func timeline(_ view: TimelineView, didResizeSegment id: UUID, newStart: Double, newEnd: Double) {
+        guard let index = segments.firstIndex(where: { $0.id == id }) else { return }
+        segments[index].start = max(0, newStart)
+        segments[index].end = min(data.duration, newEnd)
+        applySettingsAndRefresh()
+    }
+
     private func stopPlaybackIfNeeded() {
         if playTimer != nil { stopPlayback() }
     }
@@ -431,6 +535,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
                let image = NSImage(contentsOf: url)?
                    .cgImage(forProposedRect: nil, context: nil, hints: nil) {
                 backgroundImage = image
+                backgroundImagePath = url.path
             }
         }
         settingsChanged()
@@ -488,6 +593,11 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         stopPlaybackIfNeeded()
         saveEdits()
+        persistSettings()
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
         renderer?.cancel()
     }
 
@@ -497,6 +607,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
         guard let window else { return }
         stopPlaybackIfNeeded()
         saveEdits()
+        persistSettings()
 
         let savePanel = NSSavePanel()
         savePanel.title = "Exporter la vidéo"

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var elapsedTimer: Timer?
     private var recordingStartDate: Date?
+    private var countdownEscapeMonitors: [Any] = []
 
     private var startItem: NSMenuItem!
     private var windowSubmenuItem: NSMenuItem!
@@ -209,7 +210,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let proceed = { [weak self] in
             guard let self else { return }
+            self.installCountdownEscapeMonitors()
             self.countdown.run(seconds: 3) {
+                self.removeCountdownEscapeMonitors()
                 self.screenRecorder.start(to: session.rawVideoURL, target: target) { error in
                     self.isStarting = false
                     if let error {
@@ -332,6 +335,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.editorWindow?.show()
             }
         }
+    }
+
+    // MARK: - Annulation du compte à rebours (Échap)
+
+    private func installCountdownEscapeMonitors() {
+        let handler: (NSEvent) -> Void = { [weak self] event in
+            if event.keyCode == 53 { self?.cancelCountdown() }
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: handler) {
+            countdownEscapeMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in
+            handler(event)
+            return event.keyCode == 53 ? nil : event
+        }) {
+            countdownEscapeMonitors.append(local)
+        }
+    }
+
+    private func removeCountdownEscapeMonitors() {
+        for monitor in countdownEscapeMonitors {
+            NSEvent.removeMonitor(monitor)
+        }
+        countdownEscapeMonitors = []
+    }
+
+    private func cancelCountdown() {
+        countdown.cancel()
+        removeCountdownEscapeMonitors()
+        isStarting = false
     }
 
     // MARK: - Options

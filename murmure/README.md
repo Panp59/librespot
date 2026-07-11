@@ -91,7 +91,16 @@ Après avoir accordé Accessibilité, quitte et relance l'app.
 
 - **Dictée** : place ton curseur où tu veux écrire, **maintiens ⌥ droite**,
   parle, relâche. Le texte apparaît. (Un petit HUD en bas d'écran indique
-  l'état.)
+  l'état.) **Échap** pendant l'enregistrement annule la dictée. Des sons
+  discrets marquent le début/la fin (désactivables dans le menu).
+- **Vocabulaire personnalisé** : ajoute tes noms propres et ton jargon
+  (un par ligne) dans `~/Documents/Murmure/vocabulaire.txt` — ils seront
+  mieux reconnus. Les lignes commençant par `#` sont ignorées.
+- **Historique** : chaque dictée est ajoutée à
+  `~/Documents/Murmure/Dictées.md` (désactivable avec `MURMURE_HISTORY=0`).
+- **Langue** : le menu propose la « Détection automatique de la langue »
+  pour les dictées bilingues, sans redémarrer le backend.
+- Le menu permet aussi de **lancer Murmure à l'ouverture de session**.
 - **Réunion en présentiel** : menu 🎙️ → « Réunion en présentiel : démarrer »,
   puis « Arrêter la réunion et transcrire » à la fin. Donne un titre → le
   compte-rendu Markdown s'ouvre tout seul.

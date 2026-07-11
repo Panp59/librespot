@@ -43,8 +43,12 @@ final class BackendClient {
         }.resume()
     }
 
-    func dictate(audioURL: URL, completion: @escaping (Result<String, Error>) -> Void) {
-        upload(path: "dictate", files: [("audio", audioURL)], fields: [:]) { (result: Result<DictationResponse, Error>) in
+    /// `language` : nil = langue par défaut du backend ; "auto" = détection
+    /// automatique ; sinon un code langue ("fr", "en"…).
+    func dictate(audioURL: URL, language: String? = nil, completion: @escaping (Result<String, Error>) -> Void) {
+        var fields: [String: String] = [:]
+        if let language { fields["language"] = language }
+        upload(path: "dictate", files: [("audio", audioURL)], fields: fields) { (result: Result<DictationResponse, Error>) in
             completion(result.map { $0.text })
         }
     }

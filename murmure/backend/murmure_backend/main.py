@@ -46,15 +46,57 @@ async def health() -> dict:
     return {"status": "ok", "model": config.WHISPER_MODEL, "language": config.LANGUAGE}
 
 
+def _dictation_prompt() -> str:
+    """Prompt de dictée, enrichi du vocabulaire personnalisé s'il existe."""
+    prompt = config.DICTATION_PROMPT
+    try:
+        if config.VOCAB_FILE.exists():
+            words = [
+                line.strip()
+                for line in config.VOCAB_FILE.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            if words:
+                prompt += " Vocabulaire : " + ", ".join(words[:80]) + "."
+    except OSError:
+        logger.warning("Vocabulaire illisible : %s", config.VOCAB_FILE)
+    return prompt
+
+
+def _append_history(text: str) -> None:
+    """Ajoute la dictée à l'historique local (Markdown)."""
+    if not config.HISTORY_ENABLED or not text:
+        return
+    import datetime as dt
+
+    try:
+        config.HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        is_new = not config.HISTORY_FILE.exists()
+        with config.HISTORY_FILE.open("a", encoding="utf-8") as f:
+            if is_new:
+                f.write("# Historique des dictées Murmure\n\n")
+            f.write(f"- **{dt.datetime.now():%d/%m/%Y %H:%M}** — {text}\n")
+    except OSError:
+        logger.warning("Impossible d'écrire l'historique : %s", config.HISTORY_FILE)
+
+
 @app.post("/dictate")
-async def dictate(audio: UploadFile = File(...)) -> dict:
-    """Transcrit un court enregistrement de dictée et renvoie le texte nettoyé."""
+async def dictate(
+    audio: UploadFile = File(...),
+    language: str | None = Form(None),
+) -> dict:
+    """Transcrit un court enregistrement de dictée et renvoie le texte nettoyé.
+
+    `language` : absent = langue de la config ; "auto" = détection
+    automatique ; sinon un code langue ("fr", "en"…).
+    """
     with tempfile.TemporaryDirectory() as tmp:
         path = await _save_upload(audio, tmp)
+        prompt = _dictation_prompt()
         try:
             result = await anyio.to_thread.run_sync(
                 lambda: transcription.transcribe(
-                    path, initial_prompt=config.DICTATION_PROMPT
+                    path, initial_prompt=prompt, language_override=language
                 )
             )
         except Exception as exc:  # noqa: BLE001
@@ -62,7 +104,8 @@ async def dictate(audio: UploadFile = File(...)) -> dict:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
     text = cleanup.clean_dictation(result.get("text", ""))
     logger.info("Dictée : %r", text)
-    return {"text": text}
+    _append_history(text)
+    return {"text": text, "language": result.get("language")}
 
 
 @app.post("/meeting")

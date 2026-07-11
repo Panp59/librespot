@@ -32,10 +32,15 @@ L'aperçu de l'éditeur et l'export passent par **le même compositeur**
   webcam et touches clavier activables dans le menu.
 - **Éditeur** (s'ouvre à l'arrêt de l'enregistrement) :
   - aperçu WYSIWYG avec lecture et scrub à la souris sur la timeline ;
+    raccourcis : **espace** = lecture/pause, **←/→** = image par image
+    (**⇧←/⇧→** = par seconde) ;
   - **zooms modifiables** : détectés automatiquement sur les clics, puis
     sélectionnables dans la timeline — désactiver, supprimer, ajouter un
-    zoom à la tête de lecture, régler l'intensité globale ;
+    zoom à la tête de lecture, **étirer les bords à la souris**, régler
+    l'intensité globale ;
   - **rognage** début/fin ;
+  - les réglages d'habillage sont **mémorisés** d'un enregistrement à
+    l'autre ;
   - habillage : 5 fonds dégradés, couleur unie ou image personnalisée,
     marge, coins arrondis, taille du curseur ;
   - **webcam** : position (4 coins), forme (cercle ou rectangle), taille ;
@@ -71,8 +76,8 @@ relance l'app.
 
 1. Menu 🎬 → active si besoin **Micro**, **Webcam**, **Touches**, puis
    « Enregistrer l'écran » ou « Enregistrer une fenêtre ».
-2. Compte à rebours, puis fais ta démo — clique là où tu veux attirer
-   l'attention, c'est là que la caméra zoomera.
+2. Compte à rebours (Échap pour annuler), puis fais ta démo — clique là où
+   tu veux attirer l'attention, c'est là que la caméra zoomera.
 3. Menu 🎬 → « Arrêter et ouvrir l'éditeur » : ajuste zooms, rognage et
    habillage en voyant le résultat, puis « Exporter la vidéo… ».
 

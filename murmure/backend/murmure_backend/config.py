@@ -35,3 +35,16 @@ DICTATION_PROMPT = os.environ.get(
     "MURMURE_DICTATION_PROMPT",
     "Voici une dictée en français, correctement ponctuée, sans hésitations.",
 )
+
+# Vocabulaire personnalisé (noms propres, jargon) : un mot ou une expression
+# par ligne, injectés dans le prompt Whisper pour améliorer leur
+# reconnaissance. Le fichier est relu à chaque dictée.
+VOCAB_FILE = Path(
+    os.environ.get("MURMURE_VOCAB_FILE", OUTPUT_DIR / "vocabulaire.txt")
+)
+
+# Historique local des dictées (Markdown). Mettre "0" pour désactiver.
+HISTORY_ENABLED = os.environ.get("MURMURE_HISTORY", "1") != "0"
+HISTORY_FILE = Path(
+    os.environ.get("MURMURE_HISTORY_FILE", OUTPUT_DIR / "Dictées.md")
+)

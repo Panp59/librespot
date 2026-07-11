@@ -3,6 +3,7 @@ import AppKit
 protocol TimelineViewDelegate: AnyObject {
     func timeline(_ view: TimelineView, didSeekTo t: Double)
     func timeline(_ view: TimelineView, didSelectSegment id: UUID?)
+    func timeline(_ view: TimelineView, didResizeSegment id: UUID, newStart: Double, newEnd: Double)
 }
 
 /// Timeline de l'éditeur : segments de zoom (cliquables), marqueurs de
@@ -12,7 +13,12 @@ final class TimelineView: NSView {
 
     var duration: Double = 1 { didSet { needsDisplay = true } }
     var playhead: Double = 0 { didSet { needsDisplay = true } }
-    var segments: [ZoomSegment] = [] { didSet { needsDisplay = true } }
+    var segments: [ZoomSegment] = [] {
+        didSet {
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var clickTimes: [Double] = [] { didSet { needsDisplay = true } }
     var trimStart: Double = 0 { didSet { needsDisplay = true } }
     var trimEnd: Double = 1 { didSet { needsDisplay = true } }
@@ -89,20 +95,71 @@ final class TimelineView: NSView {
 
     // MARK: - Interactions
 
+    private enum DragMode {
+        case seek
+        case resizeStart(UUID)
+        case resizeEnd(UUID)
+    }
+
+    private var dragMode: DragMode = .seek
+    private let edgeGrabWidth: CGFloat = 6
+
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let t = time(for: point.x)
 
-        // Sélectionne le segment sous le clic, s'il y en a un.
-        let hit = segments.first { segment in
-            t >= segment.start && t <= segment.end
+        // Bord d'un segment → redimensionnement à la souris.
+        for segment in segments {
+            if abs(point.x - x(for: segment.start)) <= edgeGrabWidth {
+                dragMode = .resizeStart(segment.id)
+                delegate?.timeline(self, didSelectSegment: segment.id)
+                return
+            }
+            if abs(point.x - x(for: segment.end)) <= edgeGrabWidth {
+                dragMode = .resizeEnd(segment.id)
+                delegate?.timeline(self, didSelectSegment: segment.id)
+                return
+            }
         }
+
+        // Sinon : sélection du segment sous le clic + déplacement de la
+        // tête de lecture.
+        dragMode = .seek
+        let hit = segments.first { t >= $0.start && t <= $0.end }
         delegate?.timeline(self, didSelectSegment: hit?.id)
         delegate?.timeline(self, didSeekTo: t)
     }
 
     override func mouseDragged(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        delegate?.timeline(self, didSeekTo: time(for: point.x))
+        let t = time(for: point.x)
+
+        switch dragMode {
+        case .seek:
+            delegate?.timeline(self, didSeekTo: t)
+        case .resizeStart(let id):
+            guard let segment = segments.first(where: { $0.id == id }) else { return }
+            let newStart = min(t, segment.end - 0.3)
+            delegate?.timeline(self, didResizeSegment: id, newStart: max(0, newStart), newEnd: segment.end)
+        case .resizeEnd(let id):
+            guard let segment = segments.first(where: { $0.id == id }) else { return }
+            let newEnd = max(t, segment.start + 0.3)
+            delegate?.timeline(self, didResizeSegment: id, newStart: segment.start, newEnd: min(duration, newEnd))
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        dragMode = .seek
+    }
+
+    override func resetCursorRects() {
+        // Curseur de redimensionnement sur les bords des segments.
+        for segment in segments {
+            for edge in [x(for: segment.start), x(for: segment.end)] {
+                let rect = NSRect(x: edge - edgeGrabWidth, y: 0,
+                                  width: edgeGrabWidth * 2, height: bounds.height)
+                addCursorRect(rect, cursor: .resizeLeftRight)
+            }
+        }
     }
 }

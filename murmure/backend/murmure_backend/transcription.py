@@ -17,17 +17,33 @@ def _language() -> str | None:
     return None if lang in ("", "auto") else lang
 
 
-def transcribe(audio_path: str, *, initial_prompt: str | None = None) -> dict:
+def transcribe(
+    audio_path: str,
+    *,
+    initial_prompt: str | None = None,
+    language_override: str | None = None,
+) -> dict:
     """Transcrit un fichier audio. Retourne le dict mlx-whisper
-    ({"text": ..., "segments": [{"start", "end", "text"}, ...]})."""
+    ({"text": ..., "segments": [{"start", "end", "text"}, ...]}).
+
+    language_override : None = langue de la config ; "auto" = détection
+    automatique forcée ; sinon un code langue ("fr", "en"…).
+    """
     import mlx_whisper  # import paresseux : long au premier chargement
+
+    if language_override is None:
+        language = _language()
+    elif language_override.strip().lower() in ("auto", ""):
+        language = None
+    else:
+        language = language_override.strip().lower()
 
     with _lock:
         logger.info("Transcription de %s (modèle %s)", audio_path, config.WHISPER_MODEL)
         result = mlx_whisper.transcribe(
             audio_path,
             path_or_hf_repo=config.WHISPER_MODEL,
-            language=_language(),
+            language=language,
             initial_prompt=initial_prompt,
             condition_on_previous_text=True,
         )
