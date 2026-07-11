@@ -25,10 +25,13 @@ final class CameraPlanner {
     private var cameraTrack: [CGPoint] = []   // lissage fort (caméra)
     private var trackStart: Double = 0
 
-    init(recording: RecordingData, maxZoom: CGFloat) {
+    init(recording: RecordingData, segments: [ZoomSegment], maxZoom: CGFloat) {
         self.sourceSize = CGSize(width: recording.pixelWidth, height: recording.pixelHeight)
         self.maxZoom = max(1.0, maxZoom)
-        buildSegments(clicks: recording.clicks, duration: recording.duration)
+        self.segments = segments
+            .filter { $0.enabled && $0.end > $0.start }
+            .map { (start: $0.start, end: $0.end) }
+            .sorted { $0.start < $1.start }
         buildTracks(points: recording.points, duration: recording.duration)
     }
 
@@ -44,27 +47,6 @@ final class CameraPlanner {
     }
 
     // MARK: - Zoom
-
-    private func buildSegments(clicks: [MouseClick], duration: Double) {
-        let holdBefore = 0.35
-        let holdAfter = 1.8
-        let mergeGap = 1.2
-
-        let windows = clicks
-            .map { (start: max(0, $0.t - holdBefore), end: min(duration, $0.t + holdAfter)) }
-            .sorted { $0.start < $1.start }
-
-        var merged: [(start: Double, end: Double)] = []
-        for window in windows {
-            if var last = merged.last, window.start - last.end < mergeGap {
-                last.end = max(last.end, window.end)
-                merged[merged.count - 1] = last
-            } else {
-                merged.append(window)
-            }
-        }
-        segments = merged
-    }
 
     private func zoomFactor(at t: Double) -> CGFloat {
         var envelope = 0.0

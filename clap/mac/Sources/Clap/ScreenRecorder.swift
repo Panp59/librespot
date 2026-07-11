@@ -19,7 +19,13 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     var isRecording: Bool { stream != nil }
 
-    func start(to url: URL, completion: @escaping (Error?) -> Void) {
+    /// Cible de capture : l'écran principal, ou une fenêtre précise.
+    enum Target {
+        case mainDisplay
+        case window(SCWindow)
+    }
+
+    func start(to url: URL, target: Target = .mainDisplay, completion: @escaping (Error?) -> Void) {
         try? FileManager.default.removeItem(at: url)
         firstFrameTime = nil
 
@@ -29,24 +35,38 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 DispatchQueue.main.async { completion(error) }
                 return
             }
-            let mainID = CGMainDisplayID()
-            guard let display = content?.displays.first(where: { $0.displayID == mainID })
-                ?? content?.displays.first
-            else {
-                let err = NSError(
-                    domain: "Clap", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Aucun écran disponible pour la capture."]
-                )
-                DispatchQueue.main.async { completion(err) }
-                return
-            }
 
             let scale = NSScreen.main?.backingScaleFactor ?? 2
-            let width = Int(CGFloat(display.width) * scale)
-            let height = Int(CGFloat(display.height) * scale)
+            let filter: SCContentFilter
+            let width: Int
+            let height: Int
+
+            switch target {
+            case .mainDisplay:
+                let mainID = CGMainDisplayID()
+                guard let display = content?.displays.first(where: { $0.displayID == mainID })
+                    ?? content?.displays.first
+                else {
+                    let err = NSError(
+                        domain: "Clap", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Aucun écran disponible pour la capture."]
+                    )
+                    DispatchQueue.main.async { completion(err) }
+                    return
+                }
+                filter = SCContentFilter(display: display, excludingWindows: [])
+                width = Int(CGFloat(display.width) * scale)
+                height = Int(CGFloat(display.height) * scale)
+
+            case .window(let window):
+                filter = SCContentFilter(desktopIndependentWindow: window)
+                // L'encodeur H.264 exige des dimensions paires.
+                width = (Int(window.frame.width * scale)) & ~1
+                height = (Int(window.frame.height * scale)) & ~1
+            }
+
             self.pixelSize = CGSize(width: width, height: height)
 
-            let filter = SCContentFilter(display: display, excludingWindows: [])
             let config = SCStreamConfiguration()
             config.width = width
             config.height = height
@@ -63,8 +83,10 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     AVVideoHeightKey: height,
                     AVVideoCompressionPropertiesKey: [
                         // Capture brute : débit généreux, la compression
-                        // finale se fait à l'export.
-                        AVVideoAverageBitRateKey: 40_000_000
+                        // finale se fait à l'export. Images clés fréquentes
+                        // pour un scrub réactif dans l'éditeur.
+                        AVVideoAverageBitRateKey: 40_000_000,
+                        AVVideoMaxKeyFrameIntervalKey: 30,
                     ],
                 ]
                 let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)

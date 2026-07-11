@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Clap enregistre le micro pour la voix off de tes vidéos. Tout reste en local sur ce Mac.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Clap enregistre la webcam pour l'incruster dans tes vidéos. Tout reste en local sur ce Mac.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>

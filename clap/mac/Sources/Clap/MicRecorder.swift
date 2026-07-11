@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import QuartzCore
 
 /// Enregistre le micro en AAC (.m4a), mixé dans la vidéo à l'export.
 final class MicRecorder: NSObject {

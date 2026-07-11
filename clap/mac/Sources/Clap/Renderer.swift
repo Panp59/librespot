@@ -2,91 +2,31 @@ import AVFoundation
 import AppKit
 import VideoToolbox
 
-// MARK: - Réglages d'export
-
-struct BackgroundPreset {
-    let name: String
-    let topColor: CGColor
-    let bottomColor: CGColor
-
-    static let all: [BackgroundPreset] = [
-        BackgroundPreset(
-            name: "Bleu nuit",
-            topColor: CGColor(red: 0.16, green: 0.22, blue: 0.48, alpha: 1),
-            bottomColor: CGColor(red: 0.05, green: 0.06, blue: 0.16, alpha: 1)
-        ),
-        BackgroundPreset(
-            name: "Aurore",
-            topColor: CGColor(red: 0.98, green: 0.45, blue: 0.42, alpha: 1),
-            bottomColor: CGColor(red: 0.45, green: 0.16, blue: 0.50, alpha: 1)
-        ),
-        BackgroundPreset(
-            name: "Forêt",
-            topColor: CGColor(red: 0.13, green: 0.42, blue: 0.34, alpha: 1),
-            bottomColor: CGColor(red: 0.04, green: 0.15, blue: 0.13, alpha: 1)
-        ),
-        BackgroundPreset(
-            name: "Graphite",
-            topColor: CGColor(gray: 0.22, alpha: 1),
-            bottomColor: CGColor(gray: 0.08, alpha: 1)
-        ),
-        BackgroundPreset(
-            name: "Clair",
-            topColor: CGColor(gray: 0.96, alpha: 1),
-            bottomColor: CGColor(gray: 0.82, alpha: 1)
-        ),
-    ]
-}
-
-struct OutputFormat {
-    let name: String
-    let size: CGSize
-
-    static let all: [OutputFormat] = [
-        OutputFormat(name: "1080p (1920 × 1080)", size: CGSize(width: 1920, height: 1080)),
-        OutputFormat(name: "1440p (2560 × 1440)", size: CGSize(width: 2560, height: 1440)),
-        OutputFormat(name: "4K (3840 × 2160)", size: CGSize(width: 3840, height: 2160)),
-        OutputFormat(name: "Vertical (1080 × 1920)", size: CGSize(width: 1080, height: 1920)),
-    ]
-}
-
-struct ExportSettings {
-    var outputSize = CGSize(width: 1920, height: 1080)
-    var fps = 30
-    /// Marge autour de l'écran, en fraction du plus petit côté de la sortie.
-    var paddingFraction: CGFloat = 0.07
-    /// Rayon des coins arrondis, en pixels de sortie.
-    var cornerRadius: CGFloat = 18
-    /// Facteur de zoom maximal sur les clics (1 = zoom désactivé).
-    var maxZoom: CGFloat = 1.9
-    /// Taille du curseur synthétique (multiplicateur).
-    var cursorScale: CGFloat = 2.0
-    var background = BackgroundPreset.all[0]
-    var includeMic = true
-}
-
-// MARK: - Renderer
-
-/// Fabrique la vidéo finale : fond dégradé, écran encadré avec coins
-/// arrondis et ombre, caméra virtuelle (zooms sur les clics), curseur
-/// synthétique lissé, ondes de clic, et piste micro éventuelle.
+/// Fabrique la vidéo finale à partir d'une session : composition via
+/// FrameComposer (fond, caméra virtuelle, curseur, webcam, touches) à
+/// cadence fixe, plus la piste micro alignée. Export annulable.
 final class Renderer {
     private let session: RecordingSession
     private let data: RecordingData
     private let settings: ExportSettings
-    private let planner: CameraPlanner
+    private let composer: FrameComposer
 
     /// Progression 0 → 1, appelée sur le thread principal.
     var onProgress: ((Double) -> Void)?
 
     private let renderQueue = DispatchQueue(label: "fr.adti.clap.render")
     private let audioQueue = DispatchQueue(label: "fr.adti.clap.render-audio")
+    private let cancelled = AtomicFlag()
 
-    init(session: RecordingSession, data: RecordingData, settings: ExportSettings) {
+    init(session: RecordingSession, data: RecordingData, settings: ExportSettings, segments: [ZoomSegment]) {
         self.session = session
         self.data = data
         self.settings = settings
-        self.planner = CameraPlanner(recording: data, maxZoom: settings.maxZoom)
+        self.composer = FrameComposer(data: data, settings: settings, segments: segments)
+    }
+
+    func cancel() {
+        cancelled.set()
     }
 
     func export(to outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
@@ -99,11 +39,49 @@ final class Renderer {
         }
     }
 
+    static var cancelledError: Error {
+        NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError,
+                userInfo: [NSLocalizedDescriptionKey: "Export annulé."])
+    }
+
+    // MARK: - Lecture séquentielle d'une piste vidéo
+
+    /// Fait avancer un lecteur de piste vidéo et fournit l'image affichée à
+    /// un instant donné (la dernière image dont le timestamp est ≤ t).
+    private final class TrackFollower {
+        private let output: AVAssetReaderTrackOutput
+        private var pending: CMSampleBuffer?
+        private(set) var currentImage: CGImage?
+
+        init(output: AVAssetReaderTrackOutput) {
+            self.output = output
+            self.pending = output.copyNextSampleBuffer()
+        }
+
+        func image(at t: Double) -> CGImage? {
+            while let sample = pending,
+                  CMSampleBufferGetPresentationTimeStamp(sample).seconds <= t {
+                if let buffer = sample.imageBuffer {
+                    var cgImage: CGImage?
+                    VTCreateCGImageFromCVPixelBuffer(buffer, options: nil, imageOut: &cgImage)
+                    if let cgImage { currentImage = cgImage }
+                }
+                pending = output.copyNextSampleBuffer()
+            }
+            return currentImage
+        }
+    }
+
     // MARK: - Boucle d'export
 
     private func runExport(to outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) throws {
         try? FileManager.default.removeItem(at: outputURL)
 
+        let trimStart = max(0, settings.trimStart)
+        let trimEnd = min(data.duration, settings.trimEnd > 0 ? settings.trimEnd : data.duration)
+        let exportDuration = max(0.1, trimEnd - trimStart)
+
+        // Piste écran.
         let asset = AVURLAsset(url: session.rawVideoURL)
         guard let videoTrack = asset.tracks(withMediaType: .video).first else {
             throw NSError(
@@ -111,7 +89,6 @@ final class Renderer {
                 userInfo: [NSLocalizedDescriptionKey: "La vidéo brute est introuvable ou vide."]
             )
         }
-
         let reader = try AVAssetReader(asset: asset)
         let readerOutput = AVAssetReaderTrackOutput(
             track: videoTrack,
@@ -119,6 +96,25 @@ final class Renderer {
         )
         reader.add(readerOutput)
 
+        // Piste webcam éventuelle.
+        var webcamReader: AVAssetReader?
+        var webcamOutput: AVAssetReaderTrackOutput?
+        if settings.showWebcam, data.hasWebcam,
+           FileManager.default.fileExists(atPath: session.webcamURL.path) {
+            let webcamAsset = AVURLAsset(url: session.webcamURL)
+            if let track = webcamAsset.tracks(withMediaType: .video).first {
+                let r = try AVAssetReader(asset: webcamAsset)
+                let o = AVAssetReaderTrackOutput(
+                    track: track,
+                    outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+                )
+                r.add(o)
+                webcamReader = r
+                webcamOutput = o
+            }
+        }
+
+        // Sortie.
         let width = Int(settings.outputSize.width)
         let height = Int(settings.outputSize.height)
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
@@ -142,7 +138,7 @@ final class Renderer {
         )
         writer.add(videoInput)
 
-        // Piste audio (micro) éventuelle.
+        // Piste audio (micro) éventuelle, alignée sur la vidéo rognée.
         var audioReader: AVAssetReader?
         var audioOutput: AVAssetReaderTrackOutput?
         var audioInput: AVAssetWriterInput?
@@ -158,20 +154,16 @@ final class Renderer {
                     outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM]
                 )
                 micReader.add(micOutput)
-                // Alignement : le micro démarre un peu avant la première
-                // image vidéo (micOffset > 0) → on saute ce début, puis on
-                // recale les horodatages sur zéro.
-                if data.micOffset > 0 {
-                    let skip = CMTime(seconds: data.micOffset, preferredTimescale: 44_100)
+                // Position, dans le fichier micro, de l'instant trimStart :
+                // le micro démarre micOffset secondes avant la vidéo.
+                let skip = data.micOffset + trimStart
+                if skip > 0 {
                     micReader.timeRange = CMTimeRange(
-                        start: skip,
-                        duration: CMTime(seconds: data.duration, preferredTimescale: 44_100)
+                        start: CMTime(seconds: skip, preferredTimescale: 44_100),
+                        duration: CMTime(seconds: exportDuration, preferredTimescale: 44_100)
                     )
-                    audioShift = skip
-                } else {
-                    // Micro démarré après la vidéo : on décale l'audio.
-                    audioShift = CMTime(seconds: data.micOffset, preferredTimescale: 44_100)
                 }
+                audioShift = CMTime(seconds: skip, preferredTimescale: 44_100)
                 let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
                     AVFormatIDKey: kAudioFormatMPEG4AAC,
                     AVNumberOfChannelsKey: 1,
@@ -191,6 +183,7 @@ final class Renderer {
                 userInfo: [NSLocalizedDescriptionKey: "Impossible de lire la vidéo brute."]
             )
         }
+        webcamReader?.startReading()
         audioReader?.startReading()
 
         guard writer.startWriting() else {
@@ -201,16 +194,29 @@ final class Renderer {
         }
         writer.startSession(atSourceTime: .zero)
 
-        let totalFrames = max(1, Int(data.duration * Double(settings.fps)))
-        var frameIndex = 0
-        var currentImage: CGImage?
-        var pendingSample = readerOutput.copyNextSampleBuffer()
+        let screenFollower = TrackFollower(output: readerOutput)
+        let webcamFollower = webcamOutput.map { TrackFollower(output: $0) }
+        let webcamOffset = data.webcamOffset
 
-        let pendingInputs = Atomic(audioInput == nil ? 1 : 2)
+        let totalFrames = max(1, Int(exportDuration * Double(settings.fps)))
+        var frameIndex = 0
+
+        let cancelled = self.cancelled
+        let pendingInputs = AtomicCounter(audioInput == nil ? 1 : 2)
+        let cleanupReaders = {
+            reader.cancelReading()
+            webcamReader?.cancelReading()
+            audioReader?.cancelReading()
+        }
         let finishIfDone = {
             guard pendingInputs.decrementAndGet() == 0 else { return }
-            reader.cancelReading()
-            audioReader?.cancelReading()
+            cleanupReaders()
+            if cancelled.isSet {
+                writer.cancelWriting()
+                try? FileManager.default.removeItem(at: outputURL)
+                DispatchQueue.main.async { completion(.failure(Renderer.cancelledError)) }
+                return
+            }
             writer.finishWriting {
                 DispatchQueue.main.async {
                     if writer.status == .completed {
@@ -228,32 +234,38 @@ final class Renderer {
         videoInput.requestMediaDataWhenReady(on: renderQueue) { [weak self] in
             guard let self else { return }
             while videoInput.isReadyForMoreMediaData {
-                if frameIndex >= totalFrames {
+                if frameIndex >= totalFrames || cancelled.isSet {
                     videoInput.markAsFinished()
                     finishIfDone()
                     return
                 }
-                let t = Double(frameIndex) / Double(self.settings.fps)
+                // Temps dans la vidéo brute (le rognage décale l'origine).
+                let t = trimStart + Double(frameIndex) / Double(self.settings.fps)
 
-                // Avance la lecture source jusqu'à l'image affichée à t.
-                // (ScreenCaptureKit ne produit une image que quand l'écran
-                // change : la dernière image reste valable entre-temps.)
-                while let sample = pendingSample,
-                      CMSampleBufferGetPresentationTimeStamp(sample).seconds <= t {
-                    if let imageBuffer = sample.imageBuffer {
-                        var cgImage: CGImage?
-                        VTCreateCGImageFromCVPixelBuffer(imageBuffer, options: nil, imageOut: &cgImage)
-                        if let cgImage { currentImage = cgImage }
-                    }
-                    pendingSample = readerOutput.copyNextSampleBuffer()
-                }
+                let screenImage = screenFollower.image(at: t)
+                let webcamImage = webcamFollower?.image(at: t + webcamOffset)
 
                 guard let pool = adaptor.pixelBufferPool else { return }
                 var pixelBuffer: CVPixelBuffer?
                 CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
                 guard let pixelBuffer else { return }
 
-                self.render(frame: currentImage, at: t, into: pixelBuffer)
+                CVPixelBufferLockBaseAddress(pixelBuffer, [])
+                if let context = CanvasContext.make(
+                    width: Int(self.settings.outputSize.width),
+                    height: Int(self.settings.outputSize.height),
+                    data: CVPixelBufferGetBaseAddress(pixelBuffer),
+                    bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer)
+                ) {
+                    self.composer.compose(
+                        into: context,
+                        canvasSize: self.settings.outputSize,
+                        screenFrame: screenImage,
+                        webcamFrame: webcamImage,
+                        at: t
+                    )
+                }
+                CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
 
                 let pts = CMTime(value: CMTimeValue(frameIndex), timescale: CMTimeScale(self.settings.fps))
                 adaptor.append(pixelBuffer, withPresentationTime: pts)
@@ -270,6 +282,11 @@ final class Renderer {
             let shift = audioShift
             audioInput.requestMediaDataWhenReady(on: audioQueue) {
                 while audioInput.isReadyForMoreMediaData {
+                    if cancelled.isSet {
+                        audioInput.markAsFinished()
+                        finishIfDone()
+                        return
+                    }
                     guard let sample = audioOutput.copyNextSampleBuffer() else {
                         audioInput.markAsFinished()
                         finishIfDone()
@@ -309,142 +326,11 @@ final class Renderer {
         )
         return result
     }
-
-    // MARK: - Composition d'une image
-
-    private func render(frame: CGImage?, at t: Double, into pixelBuffer: CVPixelBuffer) {
-        CVPixelBufferLockBaseAddress(pixelBuffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
-
-        let canvasWidth = CGFloat(CVPixelBufferGetWidth(pixelBuffer))
-        let canvasHeight = CGFloat(CVPixelBufferGetHeight(pixelBuffer))
-        guard let context = CGContext(
-            data: CVPixelBufferGetBaseAddress(pixelBuffer),
-            width: Int(canvasWidth),
-            height: Int(canvasHeight),
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-                | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else { return }
-
-        // Convertit un rectangle « origine en haut à gauche » vers le repère
-        // CG (origine en bas à gauche).
-        func cgRect(_ rect: CGRect) -> CGRect {
-            CGRect(x: rect.minX, y: canvasHeight - rect.maxY,
-                   width: rect.width, height: rect.height)
-        }
-
-        // 1. Fond dégradé.
-        if let gradient = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: [settings.background.topColor, settings.background.bottomColor] as CFArray,
-            locations: [0, 1]
-        ) {
-            context.drawLinearGradient(
-                gradient,
-                start: CGPoint(x: 0, y: canvasHeight),
-                end: CGPoint(x: 0, y: 0),
-                options: []
-            )
-        }
-
-        // 2. Emplacement de l'écran : ajustement au ratio source, centré,
-        //    avec la marge demandée (repère haut-gauche).
-        let padding = settings.paddingFraction * min(canvasWidth, canvasHeight)
-        let available = CGRect(x: padding, y: padding,
-                               width: canvasWidth - 2 * padding,
-                               height: canvasHeight - 2 * padding)
-        let sourceSize = CGSize(width: data.pixelWidth, height: data.pixelHeight)
-        let scale = min(available.width / sourceSize.width, available.height / sourceSize.height)
-        let screenSize = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
-        let screenRect = CGRect(
-            x: available.midX - screenSize.width / 2,
-            y: available.midY - screenSize.height / 2,
-            width: screenSize.width,
-            height: screenSize.height
-        )
-        let screenRectCG = cgRect(screenRect)
-        let roundedPath = CGPath(
-            roundedRect: screenRectCG,
-            cornerWidth: settings.cornerRadius,
-            cornerHeight: settings.cornerRadius,
-            transform: nil
-        )
-
-        // 3. Ombre portée sous l'écran.
-        context.saveGState()
-        context.setShadow(
-            offset: CGSize(width: 0, height: -12),
-            blur: 40,
-            color: CGColor(gray: 0, alpha: 0.4)
-        )
-        context.addPath(roundedPath)
-        context.setFillColor(CGColor(gray: 0, alpha: 1))
-        context.fillPath()
-        context.restoreGState()
-
-        // 4. Contenu de l'écran, cadré par la caméra virtuelle.
-        let camera = planner.state(at: t)
-        let cropSize = CGSize(width: sourceSize.width / camera.zoom,
-                              height: sourceSize.height / camera.zoom)
-        let cropRect = CGRect(
-            x: camera.center.x - cropSize.width / 2,
-            y: camera.center.y - cropSize.height / 2,
-            width: cropSize.width,
-            height: cropSize.height
-        )
-
-        if let frame, let cropped = frame.cropping(to: cropRect) {
-            context.saveGState()
-            context.addPath(roundedPath)
-            context.clip()
-            context.interpolationQuality = .high
-            context.draw(cropped, in: screenRectCG)
-            context.restoreGState()
-        }
-
-        // 5. Curseur synthétique et ondes de clic (uniquement s'ils sont
-        //    dans le cadrage).
-        let pixelsPerSourcePixel = screenRect.width / cropRect.width
-
-        func toCanvas(_ p: CGPoint) -> CGPoint? {
-            guard cropRect.insetBy(dx: -20, dy: -20).contains(p) else { return nil }
-            return CGPoint(
-                x: screenRect.minX + (p.x - cropRect.minX) * pixelsPerSourcePixel,
-                y: screenRect.minY + (p.y - cropRect.minY) * pixelsPerSourcePixel
-            )
-        }
-
-        let rippleDuration = 0.45
-        for click in data.clicks {
-            let age = t - click.t
-            guard age >= 0, age <= rippleDuration else { continue }
-            if let p = toCanvas(CGPoint(x: click.x, y: click.y)) {
-                CursorArtwork.drawClickRipple(
-                    in: context,
-                    at: p,
-                    canvasHeight: canvasHeight,
-                    scale: pixelsPerSourcePixel,
-                    progress: CGFloat(age / rippleDuration)
-                )
-            }
-        }
-
-        if let cursorCanvas = toCanvas(planner.cursorPosition(at: t)) {
-            CursorArtwork.drawArrow(
-                in: context,
-                at: cursorCanvas,
-                canvasHeight: canvasHeight,
-                scale: pixelsPerSourcePixel * settings.cursorScale
-            )
-        }
-    }
 }
 
-/// Petit compteur thread-safe pour synchroniser la fin des pistes.
-final class Atomic {
+// MARK: - Petits utilitaires thread-safe
+
+final class AtomicCounter {
     private var value: Int
     private let lock = NSLock()
 
@@ -457,5 +343,22 @@ final class Atomic {
         defer { lock.unlock() }
         value -= 1
         return value
+    }
+}
+
+final class AtomicFlag {
+    private var value = false
+    private let lock = NSLock()
+
+    var isSet: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func set() {
+        lock.lock()
+        defer { lock.unlock() }
+        value = true
     }
 }
