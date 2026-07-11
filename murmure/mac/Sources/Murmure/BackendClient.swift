@@ -64,17 +64,19 @@ final class BackendClient {
         title: String,
         micOffset: Double = 0,
         systemOffset: Double = 0,
+        notes: String = "",
         completion: @escaping (Result<MeetingResponse, Error>) -> Void
     ) {
         var files: [(String, URL)] = []
         if let micURL { files.append(("mic", micURL)) }
         if let systemURL { files.append(("system", systemURL)) }
-        let fields = [
+        var fields = [
             "mode": mode,
             "title": title,
             "mic_offset": String(format: "%.3f", micOffset),
             "system_offset": String(format: "%.3f", systemOffset),
         ]
+        if !notes.isEmpty { fields["notes"] = notes }
         upload(path: "meeting", files: files, fields: fields, completion: completion)
     }
 

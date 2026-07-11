@@ -64,6 +64,7 @@ def process_meeting(
     *,
     mic_offset: float = 0.0,
     system_offset: float = 0.0,
+    notes: str = "",
 ) -> dict:
     """Traite une réunion et écrit les fichiers de sortie.
 
@@ -115,13 +116,19 @@ def process_meeting(
     md_path = out_dir / "transcription.md"
     md_path.write_text(_to_markdown(title, now, segments), encoding="utf-8")
 
+    notes = notes.strip()
+    if notes:
+        (out_dir / "notes.md").write_text(
+            f"# {title} — Notes prises en réunion\n\n{notes}\n", encoding="utf-8"
+        )
+
     # Compte-rendu façon Granola (LLM local via Ollama). Jamais bloquant :
     # si Ollama est éteint, la transcription reste disponible.
     summary_path: Path | None = None
     summary_error: str | None = None
     if config.SUMMARY_ENABLED and segments:
         try:
-            summary_md = summary.generate(title, segments)
+            summary_md = summary.generate(title, segments, notes=notes)
             summary_path = out_dir / "compte-rendu.md"
             summary_path.write_text(
                 f"# {title} — Compte-rendu\n\n"

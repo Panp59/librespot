@@ -22,6 +22,12 @@ Aucun audio ne quitte la machine.
    décisions, actions (« **Qui** : quoi »), points ouverts. Les longues
    réunions sont résumées en plusieurs passes. C'est ce fichier qui s'ouvre
    à la fin ; la transcription complète reste à côté.
+4. **Notes live** : au démarrage d'une réunion, une petite fenêtre flottante
+   de notes s'ouvre (réaffichable via le menu, ⌘N). Quelques mots-clés
+   suffisent — à la fin, tes notes servent de **fil conducteur** au
+   compte-rendu : chaque point est développé à partir de la transcription,
+   les contradictions sont signalées, et le reste est complété. Les notes
+   brutes sont conservées dans `notes.md`.
 
 ## Architecture
 

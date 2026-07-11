@@ -45,10 +45,21 @@ Questions restées sans réponse, sujets à retraiter, désaccords.
 
 Ne recopie pas la transcription, ne commente pas ta démarche, réponds \
 uniquement avec le compte-rendu.
-
+{notes_block}
 Transcription :
 
 {transcript}"""
+
+_NOTES_BLOCK = """
+L'utilisateur a pris ces notes pendant la réunion. Utilise-les comme fil \
+conducteur du compte-rendu : développe chaque point noté à l'aide de la \
+transcription, signale explicitement si la transcription contredit une note, \
+et complète avec les sujets importants que les notes ne couvrent pas.
+
+Notes de l'utilisateur :
+
+{notes}
+"""
 
 _PARTIAL_PROMPT = """Voici un extrait (partie {index}/{total}) de la transcription \
 d'une réunion intitulée « {title} ».
@@ -68,7 +79,7 @@ réunion intitulée « {title} », dans l'ordre chronologique.
 exactement ces sections : « ## Résumé » (3 à 6 phrases), « ## Décisions », \
 « ## Actions » (format « **Qui** : quoi »), « ## Points ouverts ». \
 N'invente rien. Réponds uniquement avec le compte-rendu.
-
+{notes_block}
 Résumés :
 
 {transcript}"""
@@ -128,22 +139,27 @@ def _call_ollama(prompt: str) -> str:
     return _strip_thinking(response.json()["message"]["content"])
 
 
-def generate(title: str, segments: list[dict]) -> str:
-    """Génère le compte-rendu Markdown. Lève une exception si Ollama est
-    injoignable ou si le modèle n'est pas disponible (l'appelant décide
-    d'en faire une erreur bloquante ou non)."""
+def generate(title: str, segments: list[dict], *, notes: str = "") -> str:
+    """Génère le compte-rendu Markdown. Les notes prises par l'utilisateur
+    pendant la réunion, si présentes, servent de fil conducteur. Lève une
+    exception si Ollama est injoignable ou si le modèle n'est pas
+    disponible (l'appelant décide d'en faire une erreur bloquante ou non)."""
     transcript = format_transcript(segments)
     if not transcript.strip():
         raise ValueError("Transcription vide, rien à résumer.")
 
+    notes_block = _NOTES_BLOCK.format(notes=notes.strip()) if notes.strip() else ""
     chunks = _split_chunks(transcript)
     logger.info(
-        "Compte-rendu via %s (%d caractères, %d partie(s))…",
+        "Compte-rendu via %s (%d caractères, %d partie(s), notes : %s)…",
         config.SUMMARY_MODEL, len(transcript), len(chunks),
+        "oui" if notes_block else "non",
     )
 
     if len(chunks) == 1:
-        return _call_ollama(_FINAL_PROMPT.format(title=title, transcript=chunks[0]))
+        return _call_ollama(_FINAL_PROMPT.format(
+            title=title, transcript=chunks[0], notes_block=notes_block
+        ))
 
     partials = [
         _call_ollama(_PARTIAL_PROMPT.format(
@@ -152,5 +168,7 @@ def generate(title: str, segments: list[dict]) -> str:
         for i, chunk in enumerate(chunks)
     ]
     return _call_ollama(_MERGE_PROMPT.format(
-        title=title, transcript="\n\n---\n\n".join(partials)
+        title=title,
+        transcript="\n\n---\n\n".join(partials),
+        notes_block=notes_block,
     ))

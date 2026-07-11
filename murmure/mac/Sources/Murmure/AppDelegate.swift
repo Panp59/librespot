@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let systemAudio = SystemAudioRecorder()
     private let backend = BackendClient()
     private let hud = OverlayHUD()
+    private let notesWindow = NotesWindow()
 
     private var healthTimer: Timer?
     private var backendHealthy = false
@@ -34,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var soundsItem: NSMenuItem!
     private var autoLanguageItem: NSMenuItem!
     private var loginItem: NSMenuItem!
+    private var notesMenuItem: NSMenuItem!
 
     private var dictationFileURL: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("murmure-dictation.wav")
@@ -111,6 +113,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         stopMeetingItem.isHidden = true
         menu.addItem(stopMeetingItem)
+        notesMenuItem = NSMenuItem(
+            title: "Afficher les notes de réunion",
+            action: #selector(showNotes), keyEquivalent: "n"
+        )
+        notesMenuItem.isHidden = true
+        menu.addItem(notesMenuItem)
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(
@@ -296,6 +304,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.startInPersonItem.isHidden = true
             self.startRemoteItem.isHidden = true
             self.stopMeetingItem.isHidden = false
+            self.notesMenuItem.isHidden = false
+            self.notesWindow.reset()
+            self.notesWindow.show()
             self.updateStatusIcon()
             self.hud.show(mode == "remote" ? "🔴 Réunion Teams enregistrée" : "🔴 Réunion enregistrée")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
@@ -324,6 +335,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let mode = meetingMode, let dir = meetingDir else { return }
         let micResult = meetingMic.stop()
 
+        let notes = notesWindow.text
+        notesWindow.close()
+
         let proceed = { [weak self] (systemURL: URL?) in
             guard let self else { return }
             self.meetingMode = nil
@@ -331,6 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.startInPersonItem.isHidden = false
             self.startRemoteItem.isHidden = false
             self.stopMeetingItem.isHidden = true
+            self.notesMenuItem.isHidden = true
             self.updateStatusIcon()
 
             let title = self.askMeetingTitle()
@@ -354,7 +369,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 mode: mode,
                 title: title,
                 micOffset: micOffset,
-                systemOffset: systemOffset
+                systemOffset: systemOffset,
+                notes: notes
             ) { result in
                 self.hud.hide()
                 switch result {
@@ -452,6 +468,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         defaults.set(url.path, forKey: "BackendDir")
         return url
+    }
+
+    @objc private func showNotes() {
+        notesWindow.show()
     }
 
     // MARK: - Préférences

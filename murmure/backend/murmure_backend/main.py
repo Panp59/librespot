@@ -120,6 +120,7 @@ async def meeting_endpoint(
     title: str = Form("Réunion"),
     mic_offset: float = Form(0.0),
     system_offset: float = Form(0.0),
+    notes: str = Form(""),
 ) -> dict:
     """Transcrit une réunion avec identification des locuteurs.
 
@@ -143,6 +144,7 @@ async def meeting_endpoint(
                 lambda: meeting.process_meeting(
                     mic_path, system_path, mode, title,
                     mic_offset=mic_offset, system_offset=system_offset,
+                    notes=notes,
                 )
             )
         except Exception as exc:  # noqa: BLE001
