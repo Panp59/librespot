@@ -311,9 +311,16 @@ final class Renderer {
             sample, entryCount: count, arrayToFill: &infos, entriesNeededOut: &count
         )
         for i in 0..<count {
-            infos[i].presentationTimeStamp = infos[i].presentationTimeStamp - offset
+            // Le lecteur AAC peut fournir le premier paquet légèrement AVANT
+            // le début du timeRange demandé : on borne à zéro pour ne jamais
+            // produire de PTS négatif (append échouerait, export en échec).
+            infos[i].presentationTimeStamp = CMTimeMaximum(
+                .zero, infos[i].presentationTimeStamp - offset
+            )
             if infos[i].decodeTimeStamp.isValid {
-                infos[i].decodeTimeStamp = infos[i].decodeTimeStamp - offset
+                infos[i].decodeTimeStamp = CMTimeMaximum(
+                    .zero, infos[i].decodeTimeStamp - offset
+                )
             }
         }
         var result: CMSampleBuffer?

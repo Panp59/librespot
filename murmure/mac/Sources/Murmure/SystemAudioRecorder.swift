@@ -92,7 +92,7 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio,
-              sampleBuffer.isValid,
+              CMSampleBufferIsValid(sampleBuffer),
               let url = outputURL,
               let absd = sampleBuffer.formatDescription?.audioStreamBasicDescription,
               let format = AVAudioFormat(

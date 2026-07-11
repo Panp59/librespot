@@ -158,7 +158,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     // MARK: - SCStreamOutput
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen, sampleBuffer.isValid else { return }
+        guard type == .screen, CMSampleBufferIsValid(sampleBuffer) else { return }
 
         // ScreenCaptureKit envoie aussi des images « incomplètes » (écran
         // inchangé) sans données : on ne garde que les images complètes.

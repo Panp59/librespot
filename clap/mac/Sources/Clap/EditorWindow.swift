@@ -21,6 +21,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
     private var playTimer: Timer?
     private var keyMonitor: Any?
     private var backgroundImagePath: String?
+    private var colorObservation: NSKeyValueObservation?
 
     // Aperçu.
     private let previewView = NSImageView()
@@ -261,7 +262,6 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
             (trimResetButton, #selector(resetTrim)),
             (formatPopup, #selector(settingsChanged)),
             (backgroundPopup, #selector(backgroundChoiceChanged)),
-            (colorWell, #selector(settingsChanged)),
             (paddingSlider, #selector(settingsChanged)),
             (cornerSlider, #selector(settingsChanged)),
             (zoomSlider, #selector(settingsChanged)),
@@ -278,6 +278,12 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
         for (control, action) in controls {
             control.target = self
             control.action = action
+        }
+
+        // Le puits de couleur ne notifie pas de façon fiable par
+        // target/action sur macOS 13 : on observe la couleur en KVO.
+        colorObservation = colorWell.observe(\.color) { [weak self] _, _ in
+            self?.settingsChanged()
         }
 
         restoreSettings()
