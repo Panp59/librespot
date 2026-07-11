@@ -1,0 +1,9 @@
+# Swift
+mac/.build/
+mac/build/
+mac/.swiftpm/
+
+# Sorties de test
+*.mov
+*.mp4
+*.m4a
