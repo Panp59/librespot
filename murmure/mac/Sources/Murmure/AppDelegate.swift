@@ -359,9 +359,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.hud.hide()
                 switch result {
                 case .success(let response):
-                    let md = URL(fileURLWithPath: response.markdownPath)
+                    // Ouvre le compte-rendu s'il a pu être généré (Ollama),
+                    // sinon la transcription complète.
+                    let md = URL(fileURLWithPath: response.summaryPath ?? response.markdownPath)
                     NSWorkspace.shared.open(md)
                     NSWorkspace.shared.activateFileViewerSelecting([md])
+                    if let summaryError = response.summaryError {
+                        NSLog("Murmure: compte-rendu indisponible: \(summaryError)")
+                    }
                 case .failure(let error):
                     self.showAlert(
                         title: "Échec de la transcription",

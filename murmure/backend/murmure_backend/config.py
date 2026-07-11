@@ -48,3 +48,10 @@ HISTORY_ENABLED = os.environ.get("MURMURE_HISTORY", "1") != "0"
 HISTORY_FILE = Path(
     os.environ.get("MURMURE_HISTORY_FILE", OUTPUT_DIR / "Dictées.md")
 )
+
+# Compte-rendu automatique des réunions (résumé, décisions, actions) généré
+# par un LLM local via Ollama. Mettre MURMURE_SUMMARY=0 pour désactiver ;
+# si Ollama n'est pas lancé, la transcription fonctionne quand même.
+SUMMARY_ENABLED = os.environ.get("MURMURE_SUMMARY", "1") != "0"
+OLLAMA_URL = os.environ.get("MURMURE_OLLAMA_URL", "http://127.0.0.1:11434")
+SUMMARY_MODEL = os.environ.get("MURMURE_SUMMARY_MODEL", "qwen3:14b")

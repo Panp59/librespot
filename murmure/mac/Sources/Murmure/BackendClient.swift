@@ -7,6 +7,8 @@ struct DictationResponse: Decodable {
 struct MeetingResponse: Decodable {
     let markdownPath: String
     let jsonPath: String
+    let summaryPath: String?
+    let summaryError: String?
     let outputDir: String
     let numSegments: Int
     let speakers: [String]
@@ -14,6 +16,8 @@ struct MeetingResponse: Decodable {
     enum CodingKeys: String, CodingKey {
         case markdownPath = "markdown_path"
         case jsonPath = "json_path"
+        case summaryPath = "summary_path"
+        case summaryError = "summary_error"
         case outputDir = "output_dir"
         case numSegments = "num_segments"
         case speakers

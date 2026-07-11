@@ -17,6 +17,11 @@ Aucun audio ne quitte la machine.
      système (les autres participants) → transcription fusionnée
      chronologiquement, avec « Moi » et « Interlocuteur 1, 2… ».
    - Export en **Markdown + JSON** dans `~/Documents/Murmure/Réunions/`.
+3. **Compte-rendu automatique (façon Granola)** : en plus de la transcription
+   brute, un LLM local (via **Ollama**) génère `compte-rendu.md` — résumé,
+   décisions, actions (« **Qui** : quoi »), points ouverts. Les longues
+   réunions sont résumées en plusieurs passes. C'est ce fichier qui s'ouvre
+   à la fin ; la transcription complète reste à côté.
 
 ## Architecture
 
@@ -51,6 +56,14 @@ le backend fait tourner les modèles et renvoie le texte.
 
   > La dictée fonctionne sans ce compte — il n'est nécessaire que pour le
   > « qui a dit quoi » des réunions.
+- **Ollama** (optionnel, pour le compte-rendu automatique) :
+  ```bash
+  brew install ollama
+  ollama serve          # ou lance l'app Ollama
+  ollama pull qwen3:14b # ~9 Go, très bon en français sur 24 Go de RAM
+  ```
+  Sans Ollama, tout le reste fonctionne : seul `compte-rendu.md` n'est pas
+  généré. Modèle plus léger : `MURMURE_SUMMARY_MODEL=qwen3:8b`.
 
 ## Installation
 
@@ -122,6 +135,9 @@ besoin), les comptes-rendus dans `~/Documents/Murmure/Réunions/`.
 | `MURMURE_OUTPUT_DIR` | `~/Documents/Murmure` | Dossier des comptes-rendus |
 | `MURMURE_PORT` | `8765` | Port du serveur local |
 | `HF_TOKEN` | — | Jeton Hugging Face (diarization) |
+| `MURMURE_SUMMARY` | `1` | Compte-rendu automatique (`0` pour désactiver) |
+| `MURMURE_SUMMARY_MODEL` | `qwen3:14b` | Modèle Ollama du compte-rendu |
+| `MURMURE_OLLAMA_URL` | `http://127.0.0.1:11434` | URL du serveur Ollama |
 
 Exemple : `MURMURE_LANGUAGE=auto ./run.sh` pour des réunions bilingues FR/EN.
 

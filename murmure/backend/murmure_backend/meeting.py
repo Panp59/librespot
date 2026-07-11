@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 
-from . import config, diarization, transcription
+from . import config, diarization, summary, transcription
 
 logger = logging.getLogger(__name__)
 
@@ -115,10 +115,35 @@ def process_meeting(
     md_path = out_dir / "transcription.md"
     md_path.write_text(_to_markdown(title, now, segments), encoding="utf-8")
 
+    # Compte-rendu façon Granola (LLM local via Ollama). Jamais bloquant :
+    # si Ollama est éteint, la transcription reste disponible.
+    summary_path: Path | None = None
+    summary_error: str | None = None
+    if config.SUMMARY_ENABLED and segments:
+        try:
+            summary_md = summary.generate(title, segments)
+            summary_path = out_dir / "compte-rendu.md"
+            summary_path.write_text(
+                f"# {title} — Compte-rendu\n\n"
+                f"*Réunion du {now:%d/%m/%Y à %H:%M} — généré localement par "
+                f"Murmure ({config.SUMMARY_MODEL}).*\n\n"
+                f"{summary_md}\n\n---\n\n"
+                f"Transcription complète : [transcription.md](transcription.md)\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:  # noqa: BLE001
+            summary_error = str(exc)
+            logger.warning(
+                "Compte-rendu indisponible (Ollama lancé ? modèle %s tiré ?) : %s",
+                config.SUMMARY_MODEL, exc,
+            )
+
     logger.info("Réunion exportée dans %s", out_dir)
     return {
         "markdown_path": str(md_path),
         "json_path": str(json_path),
+        "summary_path": str(summary_path) if summary_path else None,
+        "summary_error": summary_error,
         "output_dir": str(out_dir),
         "num_segments": len(segments),
         "speakers": sorted({s["speaker"] for s in segments}),
