@@ -1,0 +1,13 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Swift
+mac/.build/
+mac/build/
+mac/.swiftpm/
+
+# Audio de test
+*.wav
+*.caf
