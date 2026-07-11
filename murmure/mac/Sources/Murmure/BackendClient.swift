@@ -58,12 +58,20 @@ final class BackendClient {
         systemURL: URL?,
         mode: String,
         title: String,
+        micOffset: Double = 0,
+        systemOffset: Double = 0,
         completion: @escaping (Result<MeetingResponse, Error>) -> Void
     ) {
         var files: [(String, URL)] = []
         if let micURL { files.append(("mic", micURL)) }
         if let systemURL { files.append(("system", systemURL)) }
-        upload(path: "meeting", files: files, fields: ["mode": mode, "title": title], completion: completion)
+        let fields = [
+            "mode": mode,
+            "title": title,
+            "mic_offset": String(format: "%.3f", micOffset),
+            "system_offset": String(format: "%.3f", systemOffset),
+        ]
+        upload(path: "meeting", files: files, fields: fields, completion: completion)
     }
 
     // MARK: - Multipart
@@ -72,6 +80,19 @@ final class BackendClient {
     /// enregistrements de réunion peuvent faire des centaines de Mo) puis
     /// l'envoie avec un uploadTask.
     private func upload<T: Decodable>(
+        path: String,
+        files: [(name: String, url: URL)],
+        fields: [String: String],
+        completion: @escaping (Result<T, Error>) -> Void
+    ) {
+        // La copie du corps multipart peut représenter des centaines de Mo
+        // pour une réunion : tout se prépare hors du thread principal.
+        DispatchQueue.global(qos: .utility).async {
+            self.prepareAndSend(path: path, files: files, fields: fields, completion: completion)
+        }
+    }
+
+    private func prepareAndSend<T: Decodable>(
         path: String,
         files: [(name: String, url: URL)],
         fields: [String: String],

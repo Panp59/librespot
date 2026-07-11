@@ -36,8 +36,12 @@ app = FastAPI(title="Murmure", lifespan=lifespan)
 async def _save_upload(upload: UploadFile, tmp_dir: str, label: str = "audio") -> str:
     suffix = Path(upload.filename or "audio.wav").suffix or ".wav"
     dest = Path(tmp_dir) / f"{label}{suffix}"
-    with dest.open("wb") as f:
-        shutil.copyfileobj(upload.file, f)
+
+    def _copy() -> None:  # hors de la boucle asyncio : le fichier peut être gros
+        with dest.open("wb") as f:
+            shutil.copyfileobj(upload.file, f)
+
+    await anyio.to_thread.run_sync(_copy)
     return str(dest)
 
 
@@ -114,11 +118,15 @@ async def meeting_endpoint(
     system: UploadFile | None = File(None),
     mode: str = Form("in_person"),
     title: str = Form("Réunion"),
+    mic_offset: float = Form(0.0),
+    system_offset: float = Form(0.0),
 ) -> dict:
     """Transcrit une réunion avec identification des locuteurs.
 
     - mode=in_person : la piste `mic` contient tout le monde, elle est diarizée.
     - mode=remote    : `mic` = l'utilisateur, `system` = l'audio Teams/visio.
+    Les offsets (secondes) recalent chaque piste sur l'horloge commune de
+    l'enregistrement, les deux ne démarrant pas exactement en même temps.
     """
     if mic is None and system is None:
         raise HTTPException(status_code=400, detail="Aucune piste audio fournie.")
@@ -132,7 +140,10 @@ async def meeting_endpoint(
         )
         try:
             result = await anyio.to_thread.run_sync(
-                lambda: meeting.process_meeting(mic_path, system_path, mode, title)
+                lambda: meeting.process_meeting(
+                    mic_path, system_path, mode, title,
+                    mic_offset=mic_offset, system_offset=system_offset,
+                )
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Échec du traitement de la réunion")

@@ -334,12 +334,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.updateStatusIcon()
 
             let title = self.askMeetingTitle()
+
+            // Synchronisation des pistes : le micro et l'audio système ne
+            // démarrent pas exactement au même instant.
+            var micOffset = 0.0
+            var systemOffset = 0.0
+            if mode == "remote",
+               let micStart = self.meetingMic.startTime,
+               let systemStart = self.systemAudio.firstSampleTime {
+                let reference = min(micStart, systemStart)
+                micOffset = micStart - reference
+                systemOffset = systemStart - reference
+            }
+
             self.hud.show("⏳ Transcription de la réunion en cours…")
             self.backend.processMeeting(
                 micURL: micResult?.url,
                 systemURL: systemURL,
                 mode: mode,
-                title: title
+                title: title,
+                micOffset: micOffset,
+                systemOffset: systemOffset
             ) { result in
                 self.hud.hide()
                 switch result {

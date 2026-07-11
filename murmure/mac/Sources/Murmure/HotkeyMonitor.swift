@@ -32,7 +32,10 @@ final class HotkeyMonitor {
 
     private func handle(_ event: NSEvent) {
         guard event.keyCode == Self.rightOptionKeyCode else { return }
-        let pressed = event.modifierFlags.contains(.option)
+        // .option est vrai si N'IMPORTE QUELLE touche Option est enfoncée :
+        // on teste le bit spécifique de l'Option droite (NX_DEVICERALTKEYMASK)
+        // pour ne pas rester bloqué si l'Option gauche est aussi enfoncée.
+        let pressed = event.modifierFlags.rawValue & 0x40 != 0
         if pressed && !isDown {
             isDown = true
             onPress?()

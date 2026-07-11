@@ -7,14 +7,19 @@ import ScreenCaptureKit
 /// de l'écran (c'est elle qui couvre aussi l'audio système).
 final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
+    // Accédés uniquement sur sampleQueue.
     private var audioFile: AVAudioFile?
+    private var outputURL: URL?
     private let sampleQueue = DispatchQueue(label: "fr.adti.murmure.system-audio")
-    private(set) var outputURL: URL?
+    /// Horodatage (horloge hôte, secondes) du premier échantillon écrit,
+    /// pour synchroniser avec la piste micro.
+    private(set) var firstSampleTime: Double?
 
     var isRecording: Bool { stream != nil }
 
     func start(to url: URL, completion: @escaping (Error?) -> Void) {
         try? FileManager.default.removeItem(at: url)
+        firstSampleTime = nil
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { [weak self] content, error in
             guard let self else { return }
             if let error {
@@ -49,7 +54,11 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                 return
             }
 
-            self.outputURL = url
+            // outputURL/audioFile ne vivent que sur sampleQueue.
+            self.sampleQueue.async {
+                self.outputURL = url
+                self.audioFile = nil
+            }
             self.stream = stream
             stream.startCapture { error in
                 DispatchQueue.main.async {
@@ -65,13 +74,14 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
             completion(nil)
             return
         }
-        let url = outputURL
         stream.stopCapture { [weak self] _ in
-            self?.sampleQueue.async {
-                self?.audioFile = nil
+            guard let self else { return }
+            self.sampleQueue.async {
+                let url = self.audioFile != nil ? self.outputURL : nil
+                self.audioFile = nil
+                self.outputURL = nil
                 DispatchQueue.main.async {
-                    self?.stream = nil
-                    self?.outputURL = nil
+                    self.stream = nil
                     completion(url)
                 }
             }
@@ -83,14 +93,27 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
         guard type == .audio,
               sampleBuffer.isValid,
-              let pcm = sampleBuffer.asPCMBuffer,
-              let url = outputURL
+              let url = outputURL,
+              let absd = sampleBuffer.formatDescription?.audioStreamBasicDescription,
+              let format = AVAudioFormat(
+                  standardFormatWithSampleRate: absd.mSampleRate,
+                  channels: absd.mChannelsPerFrame
+              )
         else { return }
         do {
-            if audioFile == nil {
-                audioFile = try AVAudioFile(forWriting: url, settings: pcm.format.settings)
+            // L'écriture se fait DANS la closure : le buffer « no copy »
+            // n'est valide que tant que la liste de buffers est retenue.
+            try sampleBuffer.withAudioBufferList { audioBufferList, _ in
+                guard let pcm = AVAudioPCMBuffer(
+                    pcmFormat: format,
+                    bufferListNoCopy: audioBufferList.unsafePointer
+                ) else { return }
+                if self.audioFile == nil {
+                    self.audioFile = try AVAudioFile(forWriting: url, settings: pcm.format.settings)
+                    self.firstSampleTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+                }
+                try self.audioFile?.write(from: pcm)
             }
-            try audioFile?.write(from: pcm)
         } catch {
             NSLog("Murmure: erreur d'écriture de l'audio système: \(error)")
         }
@@ -104,16 +127,3 @@ final class SystemAudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 }
 
-extension CMSampleBuffer {
-    /// Convertit un CMSampleBuffer audio en AVAudioPCMBuffer (sans copie).
-    var asPCMBuffer: AVAudioPCMBuffer? {
-        try? self.withAudioBufferList { audioBufferList, _ -> AVAudioPCMBuffer? in
-            guard let absd = self.formatDescription?.audioStreamBasicDescription else { return nil }
-            guard let format = AVAudioFormat(
-                standardFormatWithSampleRate: absd.mSampleRate,
-                channels: absd.mChannelsPerFrame
-            ) else { return nil }
-            return AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: audioBufferList.unsafePointer)
-        }
-    }
-}

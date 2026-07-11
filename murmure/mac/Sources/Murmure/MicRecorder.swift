@@ -1,10 +1,14 @@
 import AVFoundation
 import Foundation
+import QuartzCore
 
 /// Enregistre le micro en WAV 16 kHz mono 16 bits (le format attendu par Whisper).
 final class MicRecorder: NSObject {
     private var recorder: AVAudioRecorder?
     private(set) var currentURL: URL?
+    /// Horodatage (horloge hôte, secondes) du démarrage de l'enregistrement,
+    /// pour synchroniser les pistes d'une réunion.
+    private(set) var startTime: Double?
 
     var isRecording: Bool { recorder?.isRecording ?? false }
 
@@ -41,6 +45,7 @@ final class MicRecorder: NSObject {
         }
         recorder = rec
         currentURL = url
+        startTime = CACurrentMediaTime()
     }
 
     /// Arrête l'enregistrement et retourne (fichier, durée en secondes).

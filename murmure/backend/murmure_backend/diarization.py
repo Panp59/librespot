@@ -19,9 +19,15 @@ def _get_pipeline():
             from pyannote.audio import Pipeline
 
             logger.info("Chargement du pipeline de diarization %s…", config.DIARIZATION_MODEL)
-            _pipeline = Pipeline.from_pretrained(
-                config.DIARIZATION_MODEL, use_auth_token=config.HF_TOKEN
-            )
+            try:
+                _pipeline = Pipeline.from_pretrained(
+                    config.DIARIZATION_MODEL, token=config.HF_TOKEN
+                )
+            except TypeError:
+                # Anciennes versions de pyannote/huggingface_hub.
+                _pipeline = Pipeline.from_pretrained(
+                    config.DIARIZATION_MODEL, use_auth_token=config.HF_TOKEN
+                )
             if _pipeline is None:
                 raise RuntimeError(
                     "Impossible de charger le pipeline pyannote. Vérifie que tu as "

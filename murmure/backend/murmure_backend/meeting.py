@@ -48,11 +48,22 @@ def _transcribe_track(audio_path: str) -> list[dict]:
     ]
 
 
+def _shift_segments(segments: list[dict], offset: float) -> None:
+    """Recale une piste sur l'horloge commune de l'enregistrement."""
+    if offset:
+        for seg in segments:
+            seg["start"] += offset
+            seg["end"] += offset
+
+
 def process_meeting(
     mic_path: str | None,
     system_path: str | None,
     mode: str,
     title: str,
+    *,
+    mic_offset: float = 0.0,
+    system_offset: float = 0.0,
 ) -> dict:
     """Traite une réunion et écrit les fichiers de sortie.
 
@@ -67,12 +78,14 @@ def process_meeting(
             mic_segments = _transcribe_track(mic_path)
             for seg in mic_segments:
                 seg["speaker"] = "Moi"
+            _shift_segments(mic_segments, mic_offset)
             segments.extend(mic_segments)
         if system_path:
             sys_segments = _transcribe_track(system_path)
             turns = diarization.diarize(system_path)
             diarization.assign_speakers(sys_segments, turns)
             _friendly_speaker_names(sys_segments, prefix="Interlocuteur")
+            _shift_segments(sys_segments, system_offset)
             segments.extend(sys_segments)
     else:  # in_person
         if not mic_path:
