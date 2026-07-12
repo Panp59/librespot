@@ -37,22 +37,22 @@ export default async function BookingPage({
       <div className="card overflow-hidden md:grid md:grid-cols-[280px_1fr]">
         {/* Panneau récapitulatif */}
         <aside
-          className="border-b border-slate-200 p-6 md:border-b-0 md:border-r"
+          className="border-b border-white/10 p-6 md:border-b-0 md:border-r"
           style={{ borderTopColor: eventType.color, borderTopWidth: 4 }}
         >
           {!isEmbed && (
-            <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-              {settings?.orgName}
+            <p>
+              <span className="pill">{settings?.orgName}</span>
             </p>
           )}
-          <p className="mt-1 text-sm text-slate-500">{host.name}</p>
+          <p className="mt-1 text-sm text-slate-400">{host.name}</p>
           <h1 className="mt-1 text-xl font-bold">{eventType.name}</h1>
-          <div className="mt-4 grid gap-2 text-sm text-slate-600">
+          <div className="mt-4 grid gap-2 text-sm text-slate-300">
             <p>🕐 {eventType.durationMin} minutes</p>
             <p>{LOCATION_LABELS[eventType.locationType] ?? eventType.locationDetail}</p>
           </div>
           {eventType.description && (
-            <p className="mt-4 text-sm leading-relaxed text-slate-600">
+            <p className="mt-4 text-sm leading-relaxed text-slate-300">
               {eventType.description}
             </p>
           )}

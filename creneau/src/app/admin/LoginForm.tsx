@@ -49,7 +49,7 @@ export default function LoginForm() {
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
       <button type="submit" className="btn-primary" disabled={busy}>
         {busy ? 'Connexion…' : 'Se connecter'}
       </button>

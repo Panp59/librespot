@@ -69,7 +69,7 @@ export default function AvailabilityClient({ initial }: { initial: Window[] }) {
                     />
                     <button
                       type="button"
-                      className="text-sm text-red-500 hover:underline"
+                      className="text-sm text-red-400 hover:underline"
                       onClick={() => setWindows(windows.filter((_, i) => i !== w.index))}
                     >
                       Supprimer

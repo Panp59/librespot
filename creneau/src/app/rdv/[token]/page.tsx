@@ -36,20 +36,20 @@ export default async function ManageBookingPage({
   return (
     <main className="mx-auto max-w-lg px-4 py-16">
       {banner && !cancelled && (
-        <p className="mb-6 rounded-xl bg-green-50 p-4 text-sm font-medium text-green-800">
+        <p className="mb-6 rounded-xl bg-green-500/10 p-4 text-sm font-medium text-green-300">
           {banner}
         </p>
       )}
 
       <div className="card p-6">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-400">
           {cancelled ? 'Rendez-vous annulé' : 'Votre rendez-vous'}
         </p>
         <h1 className={`mt-1 text-xl font-bold ${cancelled ? 'line-through' : ''}`}>
           {booking.eventType.name} avec {host.name}
         </h1>
 
-        <div className="mt-5 grid gap-2 text-sm text-slate-700">
+        <div className="mt-5 grid gap-2 text-sm text-slate-200">
           <p>
             📅 {formatDateTimeFr(booking.startUtc, booking.inviteeTimezone)}{' '}
             <span className="text-slate-400">({booking.inviteeTimezone})</span>
@@ -60,7 +60,7 @@ export default async function ManageBookingPage({
             {isLink ? (
               <a
                 href={location}
-                className="font-medium text-accent hover:underline"
+                className="font-medium text-accent-light hover:underline"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -86,11 +86,11 @@ export default async function ManageBookingPage({
         )}
 
         {cancelled && (
-          <p className="mt-8 text-sm text-slate-600">
+          <p className="mt-8 text-sm text-slate-300">
             Vous pouvez reprendre un créneau ici :{' '}
             <Link
               href={`/${host.slug}/${booking.eventType.slug}`}
-              className="font-medium text-accent hover:underline"
+              className="font-medium text-accent-light hover:underline"
             >
               {booking.eventType.name}
             </Link>

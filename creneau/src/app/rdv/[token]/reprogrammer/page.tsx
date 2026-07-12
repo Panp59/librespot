@@ -20,12 +20,12 @@ export default async function ReschedulePage({
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-12">
-      <Link href={`/rdv/${token}`} className="text-sm font-medium text-accent hover:underline">
+      <Link href={`/rdv/${token}`} className="text-sm font-medium text-accent-light hover:underline">
         ← Retour au rendez-vous
       </Link>
       <div className="card mt-4 p-6">
         <h1 className="text-xl font-bold">Reprogrammer votre rendez-vous</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-300">
           Créneau actuel : {formatDateTimeFr(booking.startUtc, booking.inviteeTimezone)}
         </p>
         <div className="mt-6">

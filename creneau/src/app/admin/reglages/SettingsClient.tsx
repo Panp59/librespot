@@ -44,7 +44,7 @@ export default function SettingsClient(props: Props) {
 
   return (
     <div className="grid gap-6">
-      {message && <p className="rounded-xl bg-slate-100 p-3 text-sm">{message}</p>}
+      {message && <p className="rounded-xl bg-white/10 p-3 text-sm">{message}</p>}
 
       <Section title="Mon profil">
         <div className="grid gap-4 md:grid-cols-2">
@@ -106,14 +106,14 @@ export default function SettingsClient(props: Props) {
 
       <Section title="Google Calendar">
         {!props.googleAvailable ? (
-          <p className="text-sm text-slate-600">
-            Renseigne <code className="rounded bg-slate-100 px-1">GOOGLE_CLIENT_ID</code> et{' '}
-            <code className="rounded bg-slate-100 px-1">GOOGLE_CLIENT_SECRET</code> dans la
+          <p className="text-sm text-slate-300">
+            Renseigne <code className="rounded bg-white/10 px-1">GOOGLE_CLIENT_ID</code> et{' '}
+            <code className="rounded bg-white/10 px-1">GOOGLE_CLIENT_SECRET</code> dans la
             configuration du serveur pour activer la synchronisation (voir README).
           </p>
         ) : props.googleConnected ? (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-green-700">
+            <p className="text-sm text-green-300">
               ✅ Connecté — vos occupations bloquent les créneaux et les RDV créent un
               événement avec lien Meet.
             </p>
@@ -123,7 +123,7 @@ export default function SettingsClient(props: Props) {
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-slate-300">
               Connecte ton agenda pour bloquer automatiquement tes créneaux occupés et générer
               les liens Meet.
             </p>
@@ -135,11 +135,11 @@ export default function SettingsClient(props: Props) {
       </Section>
 
       <Section title="Intégrer sur votre site (gmao.org…)">
-        <p className="mb-3 text-sm text-slate-600">
-          Colle ce code dans ta page — remplace <code className="rounded bg-slate-100 px-1">VOTRE-TYPE-DE-RDV</code>{' '}
+        <p className="mb-3 text-sm text-slate-300">
+          Colle ce code dans ta page — remplace <code className="rounded bg-white/10 px-1">VOTRE-TYPE-DE-RDV</code>{' '}
           par le slug voulu (visible dans « Types de RDV ») :
         </p>
-        <pre className="overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">
+        <pre className="overflow-x-auto rounded-xl bg-black/50 p-4 text-xs leading-relaxed text-slate-100">
           {embedCode}
         </pre>
       </Section>
@@ -160,7 +160,7 @@ export default function SettingsClient(props: Props) {
                 <label className="label">Couleur d'accent</label>
                 <input
                   type="color"
-                  className="h-11 w-full cursor-pointer rounded-xl border border-slate-300"
+                  className="h-11 w-full cursor-pointer rounded-xl border border-white/15"
                   value={settings.accentColor}
                   onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
                 />
@@ -197,12 +197,12 @@ export default function SettingsClient(props: Props) {
           <Section title="Hôtes (comptes)">
             <ul className="mb-5 grid gap-2">
               {users.map((user) => (
-                <li key={user.id} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm">
+                <li key={user.id} className="flex items-center gap-3 rounded-xl bg-white/5 p-3 text-sm">
                   <span className="font-medium">{user.name}</span>
-                  <span className="text-slate-500">{user.email}</span>
+                  <span className="text-slate-400">{user.email}</span>
                   <span className="text-slate-400">/{user.slug}</span>
                   {user.isAdmin && (
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent-light">
                       admin
                     </span>
                   )}

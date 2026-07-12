@@ -5,8 +5,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Couleur d'accent configurable dans les réglages (variable CSS).
+        // Couleurs d'accent configurables dans les réglages (variables CSS).
         accent: 'rgb(var(--accent) / <alpha-value>)',
+        'accent-light': 'rgb(var(--accent-light) / <alpha-value>)',
       },
     },
   },

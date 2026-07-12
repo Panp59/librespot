@@ -9,9 +9,9 @@ import BookingRow from './BookingRow';
 export const dynamic = 'force-dynamic';
 
 const STATUS_BADGE: Record<string, string> = {
-  ok: 'bg-green-100 text-green-800',
-  warn: 'bg-amber-100 text-amber-800',
-  fail: 'bg-red-100 text-red-800',
+  ok: 'bg-green-500/15 text-green-300',
+  warn: 'bg-amber-500/15 text-amber-300',
+  fail: 'bg-red-500/15 text-red-300',
 };
 const STATUS_LABEL: Record<string, string> = {
   ok: 'Opérationnel',
@@ -34,14 +34,14 @@ function HealthCard({ report }: { report: HealthReport }) {
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {report.checks.map((check) => (
-          <div key={check.name} className="rounded-xl bg-slate-50 p-3">
+          <div key={check.name} className="rounded-xl bg-white/5 p-3">
             <p className="flex items-center gap-2 text-sm font-medium">
               <span className={`h-2 w-2 rounded-full ${
                 check.status === 'ok' ? 'bg-green-500' : check.status === 'warn' ? 'bg-amber-500' : 'bg-red-500'
               }`} />
               {check.label}
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">{check.detail}</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-400">{check.detail}</p>
           </div>
         ))}
       </div>
@@ -87,11 +87,11 @@ export default async function DashboardPage() {
         </div>
 
         {bookings.length === 0 ? (
-          <div className="card p-10 text-center text-slate-500">
+          <div className="card p-10 text-center text-slate-400">
             Aucun rendez-vous à venir pour le moment.
           </div>
         ) : (
-          <div className="card divide-y divide-slate-100">
+          <div className="card divide-y divide-white/10">
             {bookings.map((booking) => {
               // Réponses affichées avec le libellé des questions.
               let raw: Record<string, string> = {};

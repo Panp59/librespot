@@ -50,7 +50,7 @@ export default function BookingRow(props: Props) {
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: props.color }} />
         <div className="min-w-0 flex-1">
           <p className="font-medium">{props.when}</p>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-400">
             {props.eventName} · {props.inviteeName} ({props.inviteeEmail})
           </p>
         </div>
@@ -69,11 +69,11 @@ export default function BookingRow(props: Props) {
         </button>
       </div>
       {open && (
-        <dl className="mt-3 grid gap-1 rounded-xl bg-slate-50 p-3 text-sm">
+        <dl className="mt-3 grid gap-1 rounded-xl bg-white/5 p-3 text-sm">
           {Object.entries(answers).map(([key, value]) => (
             <div key={key} className="flex gap-2">
-              <dt className="font-medium text-slate-600">{key} :</dt>
-              <dd className="text-slate-800">{value || '—'}</dd>
+              <dt className="font-medium text-slate-300">{key} :</dt>
+              <dd className="text-white">{value || '—'}</dd>
             </div>
           ))}
         </dl>

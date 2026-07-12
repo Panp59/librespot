@@ -20,7 +20,7 @@ export default async function AvailabilityPage() {
       <AdminNav userName={user.name} />
       <main className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="mb-2 text-2xl font-bold">Disponibilités hebdomadaires</h1>
-        <p className="mb-6 text-sm text-slate-500">
+        <p className="mb-6 text-sm text-slate-400">
           Fuseau : {user.timezone}. Les créneaux proposés aux visiteurs sont
           calculés à partir de ces plages, moins vos rendez-vous et votre
           agenda Google.

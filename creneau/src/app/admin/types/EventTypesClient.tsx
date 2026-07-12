@@ -38,7 +38,7 @@ const EMPTY: EventTypeData = {
   bufferAfterMin: 10,
   minNoticeMin: 240,
   maxDaysAhead: 60,
-  color: '#4f46e5',
+  color: '#3E63F5',
   locationType: 'MEET',
   locationDetail: '',
   collectPhone: true,
@@ -166,7 +166,7 @@ export default function EventTypesClient({
           <div>
             <label className="label">Couleur</label>
             <input
-              className="h-11 w-full cursor-pointer rounded-xl border border-slate-300"
+              className="h-11 w-full cursor-pointer rounded-xl border border-white/15"
               type="color"
               value={editing.color}
               onChange={(e) => setEditing({ ...editing, color: e.target.value })}
@@ -284,7 +284,7 @@ export default function EventTypesClient({
           </div>
           <div className="grid gap-2">
             {questions.map((question, index) => (
-              <div key={question.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-3">
+              <div key={question.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white/5 p-3">
                 <input
                   className="input !w-auto flex-1"
                   placeholder="Libellé de la question"
@@ -323,7 +323,7 @@ export default function EventTypesClient({
                 </label>
                 <button
                   type="button"
-                  className="text-sm text-red-500 hover:underline"
+                  className="text-sm text-red-400 hover:underline"
                   onClick={() =>
                     setEditing({
                       ...editing,
@@ -343,7 +343,7 @@ export default function EventTypesClient({
           </div>
         </div>
 
-        {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-300">{error}</p>}
 
         <div className="mt-6 flex gap-3">
           <button type="button" className="btn-primary" onClick={save} disabled={busy || !editing.name}>
@@ -372,12 +372,12 @@ export default function EventTypesClient({
             <p className="font-semibold">
               {item.name}
               {!item.active && (
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-400">
                   désactivé
                 </span>
               )}
             </p>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-400">
               {item.durationMin} min · /{hostSlug}/{item.slug}
             </p>
           </div>
@@ -398,7 +398,7 @@ export default function EventTypesClient({
         </div>
       ))}
       {items.length === 0 && (
-        <p className="text-slate-500">Aucun type de rendez-vous pour l'instant.</p>
+        <p className="text-slate-400">Aucun type de rendez-vous pour l'instant.</p>
       )}
     </div>
   );

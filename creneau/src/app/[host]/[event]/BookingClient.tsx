@@ -168,13 +168,13 @@ export default function BookingClient({
         <button
           type="button"
           onClick={() => setSelectedSlot(null)}
-          className="mb-4 text-sm font-medium text-accent hover:underline"
+          className="mb-4 text-sm font-medium text-accent-light hover:underline"
         >
           ← Changer de créneau
         </button>
-        <div className="mb-6 rounded-xl bg-accent/5 p-4 text-sm">
+        <div className="mb-6 rounded-xl bg-accent/10 p-4 text-sm">
           <p className="font-semibold">{eventName}</p>
-          <p className="mt-1 text-slate-600">
+          <p className="mt-1 text-slate-300">
             {when.toFormat("cccc d LLLL yyyy 'à' HH:mm")} ({durationMin} min)
           </p>
         </div>
@@ -274,7 +274,7 @@ export default function BookingClient({
           )}
 
           {error && (
-            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+            <p className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">
               {error}
             </p>
           )}
@@ -345,8 +345,8 @@ export default function BookingClient({
                         isSelected
                           ? 'bg-accent text-white'
                           : hasSlots
-                            ? 'bg-accent/10 text-accent hover:bg-accent/20'
-                            : 'text-slate-300'
+                            ? 'bg-accent/10 text-accent-light hover:bg-accent/20'
+                            : 'text-slate-600'
                       }`}
                   >
                     {day.day}
@@ -380,7 +380,7 @@ export default function BookingClient({
       </div>
 
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-700">
+        <h3 className="mb-3 text-sm font-semibold text-slate-200">
           {selectedDay
             ? DateTime.fromISO(selectedDay).setLocale('fr').toFormat('cccc d LLLL')
             : 'Choisissez un jour'}
@@ -394,7 +394,7 @@ export default function BookingClient({
                 key={iso}
                 type="button"
                 onClick={() => setSelectedSlot(iso)}
-                className="rounded-xl border border-accent/40 px-3 py-2 text-sm font-semibold text-accent transition hover:bg-accent hover:text-white"
+                className="rounded-xl border border-accent/40 px-3 py-2 text-sm font-semibold text-accent-light transition hover:bg-accent hover:text-white"
               >
                 {DateTime.fromISO(iso).setZone(timezone).toFormat('HH:mm')}
               </button>

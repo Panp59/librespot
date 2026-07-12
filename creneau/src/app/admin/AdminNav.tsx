@@ -19,9 +19,9 @@ export default function AdminNav({ userName }: { userName: string }) {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-white/10 bg-[#0d1626]/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 px-4 py-3">
-        <span className="font-bold text-accent">Créneau</span>
+        <span className="font-bold text-accent-light">Créneau</span>
         <nav className="flex flex-1 flex-wrap gap-1">
           {LINKS.map((link) => (
             <Link
@@ -30,18 +30,18 @@ export default function AdminNav({ userName }: { userName: string }) {
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                 pathname.startsWith(link.href)
                   ? 'bg-accent/10 text-accent'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  : 'text-slate-300 hover:bg-white/10'
               }`}
             >
               {link.label}
             </Link>
           ))}
         </nav>
-        <span className="text-sm text-slate-500">{userName}</span>
+        <span className="text-sm text-slate-400">{userName}</span>
         <button
           type="button"
           onClick={logout}
-          className="text-sm font-medium text-slate-500 hover:text-slate-800"
+          className="text-sm font-medium text-slate-400 hover:text-white"
         >
           Déconnexion
         </button>

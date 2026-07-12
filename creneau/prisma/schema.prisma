@@ -42,7 +42,7 @@ model EventType {
   // Préavis minimal (minutes) et horizon maximal (jours).
   minNoticeMin  Int       @default(240)
   maxDaysAhead  Int       @default(60)
-  color         String    @default("#4f46e5")
+  color         String    @default("#3E63F5")
   // MEET (visio auto) | PHONE | ADDRESS | CUSTOM
   locationType  String    @default("MEET")
   locationDetail String   @default("")
@@ -99,7 +99,7 @@ model Booking {
 model Settings {
   id          String @id @default("main")
   orgName     String @default("Créneau")
-  accentColor String @default("#4f46e5")
+  accentColor String @default("#3E63F5")
   logoUrl     String @default("")
   // Texte d'accueil de la page publique.
   welcomeText String @default("Choisissez un créneau qui vous convient.")

@@ -51,11 +51,23 @@ export function parseJsonArray(json: string): number[] {
   }
 }
 
-/** #4f46e5 → « 79 70 229 » pour la variable CSS Tailwind. */
+/** #3E63F5 → « 62 99 245 » pour la variable CSS Tailwind. */
 export function hexToRgbTriplet(hex: string): string {
   const clean = hex.replace('#', '');
   const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
   const n = parseInt(full, 16);
-  if (Number.isNaN(n) || full.length !== 6) return '79 70 229';
+  if (Number.isNaN(n) || full.length !== 6) return '62 99 245';
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+}
+
+/** Variante éclaircie de l'accent (textes sur fond sombre) :
+ *  mélange avec du blanc à 45 %. */
+export function lightenTriplet(triplet: string, amount = 0.45): string {
+  return triplet
+    .split(' ')
+    .map((part) => {
+      const value = parseInt(part, 10);
+      return Math.round(value + (255 - value) * amount);
+    })
+    .join(' ');
 }

@@ -3,45 +3,60 @@
 @tailwind utilities;
 
 :root {
-  /* Couleur d'accent par défaut (indigo), surchargée par les réglages. */
-  --accent: 79 70 229;
+  /* Couleurs de marque (défaut : charte OPTIMa/gmao.org), surchargées
+     par les réglages. --accent : boutons ; --accent-light : textes. */
+  --accent: 62 99 245;
+  --accent-light: 124 155 247;
 }
 
 body {
-  @apply text-slate-900 antialiased;
+  @apply text-slate-200 antialiased;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
-  /* Fond légèrement teinté par la couleur d'accent de la marque. */
-  background-color: rgb(248 250 252);
+  /* Fond marine profond avec grille discrète et halos d'accent,
+     façon gmao.org. */
+  background-color: #0b1220;
   background-image:
-    radial-gradient(60rem 30rem at 120% -10%, rgb(var(--accent) / 0.07), transparent),
-    radial-gradient(50rem 25rem at -20% 110%, rgb(var(--accent) / 0.05), transparent);
+    radial-gradient(55rem 30rem at 85% -10%, rgb(var(--accent) / 0.16), transparent),
+    radial-gradient(40rem 24rem at -10% 110%, rgb(var(--accent) / 0.10), transparent),
+    linear-gradient(rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
   background-attachment: fixed;
   min-height: 100vh;
 }
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-white/10 bg-[#101a2e]/90 shadow-xl shadow-black/20;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
-      focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50;
+      focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:opacity-90;
+    @apply btn bg-accent text-white hover:brightness-110;
   }
   .btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10;
   }
   .btn-danger {
-    @apply btn border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+    @apply btn border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm
-      placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30;
+    @apply w-full rounded-xl border border-white/15 bg-white/5 px-3.5 py-2.5 text-sm text-white
+      placeholder:text-slate-500 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-sm font-medium text-slate-300;
+  }
+  /* Badge pilule façon « GMAO PAR ADTI ». */
+  .pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-1.5
+      text-xs font-semibold uppercase tracking-widest text-accent-light;
+  }
+  .pill::before {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full bg-accent;
   }
 }

@@ -12,7 +12,7 @@ export default async function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="card w-full max-w-sm p-8">
         <h1 className="text-xl font-bold">Créneau — Administration</h1>
-        <p className="mt-1 text-sm text-slate-500">Connectez-vous pour continuer.</p>
+        <p className="mt-1 text-sm text-slate-400">Connectez-vous pour continuer.</p>
         <div className="mt-6">
           <LoginForm />
         </div>

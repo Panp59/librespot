@@ -31,12 +31,12 @@ export default async function SettingsPage({
       <main className="mx-auto max-w-3xl px-4 py-8">
         <h1 className="mb-6 text-2xl font-bold">Réglages</h1>
         {query.google === 'ok' && (
-          <p className="mb-6 rounded-xl bg-green-50 p-4 text-sm font-medium text-green-800">
+          <p className="mb-6 rounded-xl bg-green-500/10 p-4 text-sm font-medium text-green-300">
             ✅ Google Calendar connecté !
           </p>
         )}
         {query.google === 'erreur' && (
-          <p className="mb-6 rounded-xl bg-red-50 p-4 text-sm font-medium text-red-700">
+          <p className="mb-6 rounded-xl bg-red-500/10 p-4 text-sm font-medium text-red-300">
             ⚠️ La connexion Google a échoué. Réessaie.
           </p>
         )}

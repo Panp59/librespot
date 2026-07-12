@@ -24,10 +24,13 @@ export default async function HomePage() {
             className="mx-auto mb-6 h-14 w-auto"
           />
         ) : null}
-        <h1 className="text-3xl font-bold tracking-tight">
+        <p className="mb-4">
+          <span className="pill">Prise de rendez-vous</span>
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-white">
           {settings?.orgName || 'Créneau'}
         </h1>
-        <p className="mt-3 text-slate-600">{settings?.welcomeText}</p>
+        <p className="mt-3 text-slate-300">{settings?.welcomeText}</p>
       </header>
 
       <div className="grid gap-4">
@@ -39,17 +42,17 @@ export default async function HomePage() {
                 <Link
                   key={eventType.id}
                   href={`/${host.slug}/${eventType.slug}`}
-                  className="group flex items-center gap-3 rounded-xl border border-slate-200 p-4 transition hover:border-accent hover:shadow-sm"
+                  className="group flex items-center gap-3 rounded-xl border border-white/10 p-4 transition hover:border-accent hover:shadow-sm"
                 >
                   <span
                     className="h-3 w-3 shrink-0 rounded-full"
                     style={{ backgroundColor: eventType.color }}
                   />
                   <span>
-                    <span className="block font-medium group-hover:text-accent">
+                    <span className="block font-medium group-hover:text-accent-light">
                       {eventType.name}
                     </span>
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-slate-400">
                       {eventType.durationMin} min
                     </span>
                   </span>
@@ -59,7 +62,7 @@ export default async function HomePage() {
           </section>
         ))}
         {hosts.length === 0 && (
-          <p className="text-center text-slate-500">
+          <p className="text-center text-slate-400">
             Aucun rendez-vous disponible pour le moment.
           </p>
         )}
