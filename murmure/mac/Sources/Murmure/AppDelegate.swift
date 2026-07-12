@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(
             title: "Démarrer le backend", action: #selector(startBackend), keyEquivalent: "b"
         ))
+        menu.addItem(NSMenuItem(
+            title: "Afficher les logs du backend", action: #selector(openBackendLog), keyEquivalent: "l"
+        ))
         menu.addItem(.separator())
 
         let hint = NSMenuItem(title: "Dictée : maintenir ⌥ droite (Échap pour annuler)", action: nil, keyEquivalent: "")
@@ -471,10 +474,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launchBackend(from: dir)
     }
 
+    /// Journal du backend : ~/Library/Logs/Murmure/backend.log
+    private var backendLogURL: URL {
+        let dir = FileManager.default
+            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/Murmure", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("backend.log")
+    }
+
     private func launchBackend(from dir: URL) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = [dir.appendingPathComponent("run.sh").path]
+
+        // Toute la sortie du backend part dans le journal (sinon elle est
+        // perdue : un process lancé depuis une app n'a pas de terminal).
+        let logURL = backendLogURL
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        if let handle = try? FileHandle(forWritingTo: logURL) {
+            handle.seekToEndOfFile()
+            let formatter = ISO8601DateFormatter()
+            handle.write(Data("\n===== Lancement du backend \(formatter.string(from: Date())) =====\n".utf8))
+            process.standardOutput = handle
+            process.standardError = handle
+        }
+        process.terminationHandler = { [weak self] finished in
+            NSLog("Murmure: backend terminé (code \(finished.terminationStatus))")
+            DispatchQueue.main.async { self?.backendStarting = false }
+        }
+
         do {
             try process.run()
             backendProcess = process
@@ -483,6 +514,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             NSLog("Murmure: lancement du backend impossible: \(error)")
         }
+    }
+
+    @objc private func openBackendLog() {
+        NSWorkspace.shared.open(backendLogURL)
     }
 
     /// Action du menu : utile seulement si le backend n'est ni embarqué ni

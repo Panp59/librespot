@@ -17,12 +17,18 @@ else
   VENV_DIR="$HOME/Library/Application Support/Murmure/venv"
 fi
 
-if [ ! -x "$VENV_DIR/bin/python" ]; then
-  echo "Création de l'environnement virtuel dans $VENV_DIR…"
+# Le fichier témoin n'est posé qu'après une installation COMPLÈTE : si un
+# premier lancement a été interrompu en plein pip install, on reprend
+# l'installation au lieu de démarrer avec un venv à moitié rempli.
+STAMP="$VENV_DIR/.dependances-ok"
+if [ ! -x "$VENV_DIR/bin/python" ] || [ ! -f "$STAMP" ]; then
+  echo "Installation de l'environnement Python dans $VENV_DIR…"
   mkdir -p "$(dirname "$VENV_DIR")"
-  python3 -m venv "$VENV_DIR"
+  [ -x "$VENV_DIR/bin/python" ] || python3 -m venv "$VENV_DIR"
   "$VENV_DIR/bin/pip" install --upgrade pip
   "$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
+  touch "$STAMP"
+  echo "Installation terminée."
 fi
 
 cd "$SCRIPT_DIR"

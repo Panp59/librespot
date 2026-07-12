@@ -99,6 +99,19 @@ disponible en permanence.
 > Pour le développement, `cd murmure/backend && ./run.sh` lance toujours le
 > backend à la main (venv local `.venv`).
 
+### Dépannage
+
+- **Logs du backend** : menu 🎙️ → « Afficher les logs du backend »
+  (fichier `~/Library/Logs/Murmure/backend.log`). C'est le premier réflexe
+  si le backend reste « hors ligne ».
+- **Installation interrompue** : si le premier lancement a été coupé en
+  plein téléchargement, l'app reprend l'installation toute seule au
+  lancement suivant. Pour repartir de zéro :
+  `rm -rf "$HOME/Library/Application Support/Murmure"` puis relance l'app.
+- **Test à la main** : le backend embarqué se lance aussi en terminal pour
+  voir sa sortie en direct :
+  `/Applications/Murmure.app/Contents/Resources/backend/run.sh`
+
 ### Les autorisations macOS (une seule fois)
 
 Au premier lancement, macOS va demander :
