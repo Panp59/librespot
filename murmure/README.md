@@ -57,8 +57,13 @@ le backend fait tourner les modèles et renvoie le texte.
      [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
      et de
      [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0).
-  2. Connecte-toi : `pip install huggingface_hub && huggingface-cli login`
-     (ou exporte `HF_TOKEN=hf_…` avant de lancer le backend).
+  2. Connecte-toi avec le venv du backend (créé par `run.sh`, évite l'erreur
+     `externally-managed-environment` du Python Homebrew) :
+     ```bash
+     cd murmure/backend && ./.venv/bin/huggingface-cli login
+     ```
+     Ou sans login : exporte `HF_TOKEN=hf_…` avant de lancer `./run.sh`.
+     Dans les deux cas, redémarre le backend ensuite.
 
   > La dictée fonctionne sans ce compte, il n'est nécessaire que pour le
   > « qui a dit quoi » des réunions.
