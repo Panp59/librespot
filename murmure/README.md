@@ -101,6 +101,14 @@ disponible en permanence.
 
 ### Dépannage
 
+- **La dictée transcrit mais n'insère pas le texte** : autorisation
+  Accessibilité manquante. Réglages Système → Confidentialité et sécurité →
+  Accessibilité → active Murmure. Si l'app y figure déjà, retire-la
+  (bouton –) puis re-ajoute `/Applications/Murmure.app` : la signature
+  change à chaque rebuild et macOS invalide silencieusement l'autorisation.
+  Tant qu'elle manque, le texte dicté est copié dans le presse-papiers
+  (colle avec ⌘V).
+
 - **Logs du backend** : menu 🎙️ → « Afficher les logs du backend »
   (fichier `~/Library/Logs/Murmure/backend.log`). C'est le premier réflexe
   si le backend reste « hors ligne ».

@@ -229,8 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch result {
             case .success(let text) where !text.isEmpty:
                 self.hud.hide()
-                self.playSound("Pop")
-                TextInserter.insertAtCursor(text)
+                self.deliverDictation(text)
             case .success:
                 self.hud.show("Rien entendu")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.hud.hide() }
@@ -278,6 +277,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func playSound(_ name: String) {
         guard soundsEnabled else { return }
         NSSound(named: name)?.play()
+    }
+
+    private var accessibilityAlertShown = false
+
+    /// Insère le texte au curseur si l'Accessibilité est accordée ; sinon
+    /// le copie dans le presse-papiers et guide vers le bon réglage
+    /// (l'autorisation saute à chaque rebuild : signature ad hoc).
+    private func deliverDictation(_ text: String) {
+        if AXIsProcessTrusted() {
+            playSound("Pop")
+            TextInserter.insertAtCursor(text)
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        playSound("Pop")
+        hud.show("Texte copié : colle avec ⌘V (Accessibilité requise pour l'insertion auto)", style: .error)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { self.hud.hide() }
+
+        if !accessibilityAlertShown {
+            accessibilityAlertShown = true
+            promptAccessibility()
+        }
+    }
+
+    private func promptAccessibility() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Autorisation Accessibilité requise"
+        alert.informativeText = """
+        Pour insérer le texte dicté au curseur, macOS exige l'autorisation \
+        Accessibilité.
+
+        Réglages Système → Confidentialité et sécurité → Accessibilité → \
+        active Murmure. Si Murmure y figure déjà, retire-le (bouton –) puis \
+        re-ajoute /Applications/Murmure.app : l'autorisation se perd quand \
+        l'app est reconstruite.
+
+        En attendant, chaque dictée est copiée dans le presse-papiers : \
+        colle-la avec ⌘V.
+        """
+        alert.addButton(withTitle: "Ouvrir les réglages")
+        alert.addButton(withTitle: "Plus tard")
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Réunions
