@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+  // "native" pour le dev local, musl pour l'image Docker Alpine.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Un hôte : personne qui reçoit des rendez-vous (toi, le commercial…).
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  slug         String      @unique
+  passwordHash String
+  isAdmin      Boolean     @default(false)
+  timezone     String      @default("Europe/Paris")
+  // Lien visio statique de secours (salle personnelle) si Google non connecté.
+  videoLink    String      @default("")
+  // Jetons OAuth Google Calendar (JSON), vide si non connecté.
+  googleTokens String      @default("")
+  eventTypes   EventType[]
+  availability Availability[]
+  bookings     Booking[]
+  createdAt    DateTime    @default(now())
+}
+
+// Un type de rendez-vous réservable (ex. « Démo GMAO — 30 min »).
+model EventType {
+  id            String    @id @default(cuid())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  name          String
+  slug          String
+  description   String    @default("")
+  durationMin   Int       @default(30)
+  bufferBeforeMin Int     @default(0)
+  bufferAfterMin  Int     @default(0)
+  // Préavis minimal (minutes) et horizon maximal (jours).
+  minNoticeMin  Int       @default(240)
+  maxDaysAhead  Int       @default(60)
+  color         String    @default("#4f46e5")
+  // MEET (visio auto) | PHONE | ADDRESS | CUSTOM
+  locationType  String    @default("MEET")
+  locationDetail String   @default("")
+  // Questions personnalisées : JSON [{id,label,type,required,options}]
+  questions     String    @default("[]")
+  // Rappels avant RDV, en minutes : JSON [1440, 60]
+  reminders     String    @default("[1440,60]")
+  active        Boolean   @default(true)
+  bookings      Booking[]
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, slug])
+}
+
+// Disponibilités hebdomadaires d'un hôte (plusieurs plages par jour).
+// weekday : 1 = lundi … 7 = dimanche (convention ISO / Luxon).
+model Availability {
+  id          String @id @default(cuid())
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  weekday     Int
+  startMinute Int
+  endMinute   Int
+}
+
+model Booking {
+  id            String    @id @default(cuid())
+  eventType     EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  eventTypeId   String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  startUtc      DateTime
+  endUtc        DateTime
+  inviteeName   String
+  inviteeEmail  String
+  inviteeTimezone String  @default("Europe/Paris")
+  // Réponses aux questions personnalisées : JSON {questionId: réponse}
+  answers       String    @default("{}")
+  status        String    @default("CONFIRMED") // CONFIRMED | CANCELLED
+  manageToken   String    @unique
+  googleEventId String    @default("")
+  meetLink      String    @default("")
+  // Offsets de rappel déjà envoyés (minutes) : JSON [1440]
+  remindersSent String    @default("[]")
+  createdAt     DateTime  @default(now())
+
+  @@index([status, startUtc])
+}
+
+// Réglages globaux (une seule ligne, id = "main").
+model Settings {
+  id          String @id @default("main")
+  orgName     String @default("Créneau")
+  accentColor String @default("#4f46e5")
+  logoUrl     String @default("")
+  // Texte d'accueil de la page publique.
+  welcomeText String @default("Choisissez un créneau qui vous convient.")
+}
