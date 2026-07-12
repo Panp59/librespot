@@ -48,7 +48,17 @@ def diarize(audio_path: str) -> list[dict]:
     [{"start": float, "end": float, "speaker": "SPEAKER_00"}, ...]"""
     pipeline = _get_pipeline()
     logger.info("Diarization de %s…", audio_path)
-    annotation = pipeline(audio_path)
+    result = pipeline(audio_path)
+    # pyannote 3.x renvoie une Annotation ; pyannote 4.x l'enveloppe dans
+    # un DiarizeOutput (champ speaker_diarization).
+    if hasattr(result, "itertracks"):
+        annotation = result
+    elif hasattr(result, "speaker_diarization"):
+        annotation = result.speaker_diarization
+    else:
+        raise RuntimeError(
+            f"Résultat de diarization inattendu : {type(result).__name__}"
+        )
     turns = [
         {"start": float(turn.start), "end": float(turn.end), "speaker": str(speaker)}
         for turn, _, speaker in annotation.itertracks(yield_label=True)

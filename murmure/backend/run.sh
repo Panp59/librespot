@@ -12,11 +12,18 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
 
 if [ -n "${MURMURE_VENV:-}" ]; then
   VENV_DIR="${MURMURE_VENV}"
-elif [ -w "${SCRIPT_DIR}" ]; then
-  VENV_DIR="${SCRIPT_DIR}/.venv"
 else
-  # Bundle .app en lecture seule : le venv vit dans Application Support.
-  VENV_DIR="${HOME}/Library/Application Support/Murmure/venv"
+  case "${SCRIPT_DIR}" in
+    *".app/Contents/"*)
+      # Dans le bundle .app : le venv vit dans Application Support pour
+      # SURVIVRE aux mises a jour de l'app (remplacer Murmure.app ne doit
+      # pas detruire l'environnement Python installe).
+      VENV_DIR="${HOME}/Library/Application Support/Murmure/venv"
+      ;;
+    *)
+      VENV_DIR="${SCRIPT_DIR}/.venv"
+      ;;
+  esac
 fi
 
 # Le fichier temoin n'est pose qu'apres une installation COMPLETE : si un
