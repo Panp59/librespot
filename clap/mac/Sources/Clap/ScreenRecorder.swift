@@ -54,7 +54,13 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
                     DispatchQueue.main.async { completion(err) }
                     return
                 }
-                filter = SCContentFilter(display: display, excludingWindows: [])
+                // Les fenêtres de Clap (aperçu webcam…) sont exclues de la
+                // capture, comme le fait Screen Studio.
+                let myPID = ProcessInfo.processInfo.processIdentifier
+                let ownWindows = (content?.windows ?? []).filter {
+                    $0.owningApplication?.processID == myPID
+                }
+                filter = SCContentFilter(display: display, excludingWindows: ownWindows)
                 width = Int(CGFloat(display.width) * scale)
                 height = Int(CGFloat(display.height) * scale)
 

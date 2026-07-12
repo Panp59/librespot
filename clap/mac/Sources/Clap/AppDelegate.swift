@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let screenRecorder = ScreenRecorder()
     private let micRecorder = MicRecorder()
     private let webcamRecorder = WebcamRecorder()
+    private let webcamPreview = WebcamPreviewWindow()
     private let keyLogger = KeyLogger()
     private var mouseTracker: MouseTracker?
     private let countdown = CountdownOverlay()
@@ -213,9 +214,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.installCountdownEscapeMonitors()
             self.countdown.run(seconds: 3) {
                 self.removeCountdownEscapeMonitors()
+
+                // Webcam + aperçu AVANT la capture d'écran : la fenêtre
+                // d'aperçu doit exister au moment où le filtre de capture
+                // est construit pour en être exclue.
+                if self.webcamEnabled {
+                    do {
+                        try self.webcamRecorder.start(to: session.webcamURL)
+                        self.webcamPreview.show(session: self.webcamRecorder.captureSession)
+                    } catch {
+                        NSLog("Clap: webcam indisponible: \(error)")
+                    }
+                }
+
+                // Petit délai pour que l'aperçu soit dans la liste des
+                // fenêtres au moment du filtrage.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.screenRecorder.start(to: session.rawVideoURL, target: target) { error in
                     self.isStarting = false
                     if let error {
+                        self.webcamPreview.hide()
+                        self.webcamRecorder.stop {}
                         self.showAlert(
                             title: "Impossible de démarrer la capture",
                             message: "Vérifie l'autorisation dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran.\n\nDétail : \(error.localizedDescription)"
@@ -225,10 +244,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if self.micEnabled {
                         do { try self.micRecorder.start(to: session.micURL) }
                         catch { NSLog("Clap: micro indisponible: \(error)") }
-                    }
-                    if self.webcamEnabled {
-                        do { try self.webcamRecorder.start(to: session.webcamURL) }
-                        catch { NSLog("Clap: webcam indisponible: \(error)") }
                     }
                     if self.keysEnabled {
                         self.keyLogger.start()
@@ -242,6 +257,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.stopItem.isHidden = false
                     self.updateStatusIcon()
                     self.startElapsedTimer()
+                }
                 }
             }
         }
@@ -276,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let micWasRecording = micRecorder.isRecording
         micRecorder.stop()
 
+        webcamPreview.hide()
         let webcamWasRecording = webcamRecorder.isRecording
         let webcamStart = webcamRecorder.firstFrameTime
 

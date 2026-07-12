@@ -17,7 +17,7 @@ final class CameraPlanner {
 
     /// Fenêtres temporelles (s) pendant lesquelles le zoom est actif.
     private var segments: [(start: Double, end: Double)] = []
-    private let easeDuration = 0.7
+    private let easeDuration = 0.45
 
     /// Trajectoires rééchantillonnées à 60 Hz.
     private let sampleRate = 60.0
@@ -104,10 +104,49 @@ final class CameraPlanner {
         }
 
         // Curseur : moyenne glissante courte (~80 ms) pour gommer le bruit
-        // sans dénaturer le geste. Caméra : gaussienne large (~0,7 s) pour
-        // un mouvement de « steadicam ».
+        // sans dénaturer le geste.
         cursorTrack = boxSmooth(resampled, radius: 2)
-        cameraTrack = gaussianSmooth(resampled, sigma: 0.35 * sampleRate)
+        // Caméra : ancrée avec zone morte, façon Screen Studio (elle ne
+        // bouge QUE si le curseur sort du cadre confortable).
+        cameraTrack = anchoredTrack(from: cursorTrack)
+    }
+
+    /// Trajectoire de la caméra pendant les zooms : verrouillée sur une
+    /// ancre stable. Tant que le curseur reste dans une zone de confort
+    /// (28 % du cadre visible), la caméra est parfaitement immobile ;
+    /// s'il en sort, elle glisse souplement juste assez pour le ramener
+    /// au bord de la zone (constante de temps ~0,15 s).
+    private func anchoredTrack(from cursor: [CGPoint]) -> [CGPoint] {
+        guard cursor.count > 1 else { return cursor }
+        var anchors = cursor
+        var anchor = cursor[0]
+        let dt = 1.0 / sampleRate
+        let follow = CGFloat(1 - exp(-dt / 0.15))
+
+        for i in 0..<cursor.count {
+            let t = Double(i) / sampleRate
+            let zoom = zoomFactor(at: t)
+            let point = cursor[i]
+
+            if zoom <= 1.02 {
+                // Plein cadre : l'ancre colle au curseur, pour que le
+                // prochain zoom parte pile de là où on clique.
+                anchor = point
+            } else {
+                let deadZone = (min(sourceSize.width, sourceSize.height) / zoom) * 0.28
+                let dx = point.x - anchor.x
+                let dy = point.y - anchor.y
+                let distance = sqrt(dx * dx + dy * dy)
+                if distance > deadZone {
+                    let overshoot = distance - deadZone
+                    anchor.x += dx / distance * overshoot * follow
+                    anchor.y += dy / distance * overshoot * follow
+                }
+            }
+            anchors[i] = anchor
+        }
+        // Léger lissage final pour adoucir les franchissements de zone.
+        return gaussianSmooth(anchors, sigma: 0.08 * sampleRate)
     }
 
     private func position(in track: [CGPoint], at t: Double) -> CGPoint {

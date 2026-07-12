@@ -14,6 +14,11 @@ final class WebcamRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     /// Horodatage (horloge hôte, secondes) de la première image écrite.
     private(set) var firstFrameTime: Double?
     private(set) var isRecording = false
+    private var outputURL: URL?
+
+    /// Session exposée pour l'aperçu en direct (cadrage pendant
+    /// l'enregistrement).
+    var captureSession: AVCaptureSession { session }
 
     static func requestPermission(_ completion: @escaping (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -60,24 +65,34 @@ final class WebcamRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         session.addOutput(dataOutput)
         session.commitConfiguration()
 
-        let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
-        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        let settings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: Int(dimensions.width),
-            AVVideoHeightKey: Int(dimensions.height),
-            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 8_000_000],
-        ]
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
-        input.expectsMediaDataInRealTime = true
-        writer.add(input)
-        self.writer = writer
-        self.input = input
-
+        // Le writer est créé à la première image reçue : ses dimensions
+        // correspondent alors exactement au flux réel (activeFormat peut
+        // différer de ce que la sortie délivre).
+        self.outputURL = url
         isRecording = true
         // startRunning est bloquant : hors du thread principal.
         sampleQueue.async {
             self.session.startRunning()
+        }
+    }
+
+    private func createWriter(from sampleBuffer: CMSampleBuffer) {
+        guard let url = outputURL, let pixelBuffer = sampleBuffer.imageBuffer else { return }
+        do {
+            let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+            let settings: [String: Any] = [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: CVPixelBufferGetWidth(pixelBuffer),
+                AVVideoHeightKey: CVPixelBufferGetHeight(pixelBuffer),
+                AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 8_000_000],
+            ]
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            input.expectsMediaDataInRealTime = true
+            writer.add(input)
+            self.writer = writer
+            self.input = input
+        } catch {
+            NSLog("Clap: création du writer webcam impossible: \(error)")
         }
     }
 
@@ -114,7 +129,9 @@ final class WebcamRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        guard isRecording, let writer, let input else { return }
+        guard isRecording else { return }
+        if writer == nil { createWriter(from: sampleBuffer) }
+        guard let writer, let input else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         if writer.status == .unknown {
             writer.startWriting()

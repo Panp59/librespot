@@ -12,8 +12,8 @@ struct ZoomSegment: Codable, Identifiable, Equatable {
     /// Détection automatique : une fenêtre par clic, fusionnées quand elles
     /// se chevauchent ou presque.
     static func autoDetect(clicks: [MouseClick], duration: Double) -> [ZoomSegment] {
-        let holdBefore = 0.35
-        let holdAfter = 1.8
+        let holdBefore = 0.25
+        let holdAfter = 1.4
         let mergeGap = 1.2
 
         let windows = clicks
