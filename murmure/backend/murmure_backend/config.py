@@ -14,10 +14,10 @@ WHISPER_MODEL = os.environ.get(
 LANGUAGE = os.environ.get("MURMURE_LANGUAGE", "fr")
 
 # Pipeline de diarization pyannote (modèle gated : accepter les conditions
-# sur https://huggingface.co/pyannote/speaker-diarization-3.1 puis
-# `huggingface-cli login` ou exporter HF_TOKEN).
+# sur https://huggingface.co/pyannote/speaker-diarization-community-1 puis
+# `./.venv/bin/huggingface-cli login` ou exporter HF_TOKEN).
 DIARIZATION_MODEL = os.environ.get(
-    "MURMURE_DIARIZATION_MODEL", "pyannote/speaker-diarization-3.1"
+    "MURMURE_DIARIZATION_MODEL", "pyannote/speaker-diarization-community-1"
 )
 HF_TOKEN = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 

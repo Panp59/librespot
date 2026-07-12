@@ -53,10 +53,12 @@ le backend fait tourner les modèles et renvoie le texte.
 - **Xcode Command Line Tools** : `xcode-select --install`
 - **Homebrew**, puis : `brew install ffmpeg python@3.12`
 - Un compte **Hugging Face** (gratuit) pour la diarization :
-  1. Accepte les conditions de
-     [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-     et de
-     [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0).
+  1. Demande l'accès à
+     [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+     (formulaire, autorisation immédiate). C'est le modèle chargé par
+     pyannote 4.x ; si tu forces un vieux pipeline via
+     `MURMURE_DIARIZATION_MODEL`, accepte aussi les conditions de ce
+     dépôt-là.
   2. Connecte-toi avec le venv du backend (créé par `run.sh`, évite l'erreur
      `externally-managed-environment` du Python Homebrew) :
      ```bash
