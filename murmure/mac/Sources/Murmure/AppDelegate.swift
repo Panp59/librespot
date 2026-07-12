@@ -14,7 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var healthTimer: Timer?
     private var backendHealthy = false
+    private var backendStarting = false
     private var backendProcess: Process?
+    private var lastAutoStartAt: Date?
 
     private var meetingMode: String? // "in_person" | "remote", nil = pas de réunion
     private var meetingDir: URL?
@@ -143,14 +145,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateStatusIcon() {
         let symbolName: String
+        let fallback: String
         if meetingMode != nil {
             symbolName = "record.circle.fill"
+            fallback = "record.circle.fill"
         } else if backendHealthy {
-            symbolName = "mic.fill"
+            symbolName = "waveform"
+            fallback = "mic.fill"
         } else {
-            symbolName = "mic.slash"
+            symbolName = "waveform.slash"
+            fallback = "mic.slash"
         }
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Murmure")
+            ?? NSImage(systemSymbolName: fallback, accessibilityDescription: "Murmure")
         image?.isTemplate = true
         statusItem.button?.image = image
     }
@@ -183,7 +190,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func dictationKeyDown() {
         guard backendHealthy else {
-            hud.show("⚠️ Backend hors ligne (menu Murmure → Démarrer le backend)")
+            if backendStarting {
+                hud.show("Le backend démarre, quelques secondes…", style: .working)
+            } else {
+                hud.show("Backend hors ligne (menu Murmure → Démarrer le backend)", style: .error)
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
             return
         }
@@ -193,9 +204,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dictationCancelled = false
             installEscapeMonitors()
             playSound("Tink")
-            hud.show("🎙️ Je t'écoute… (Échap pour annuler)")
+            hud.show("Je t'écoute… (Échap pour annuler)", style: .recording)
         } catch {
-            hud.show("⚠️ Micro indisponible")
+            hud.show("Micro indisponible", style: .error)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.hud.hide() }
         }
     }
@@ -209,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hud.hide()
             return
         }
-        hud.show("⏳ Transcription…")
+        hud.show("Transcription…", style: .working)
         backend.dictate(audioURL: url, language: autoLanguage ? "auto" : nil) { [weak self] result in
             guard let self else { return }
             switch result {
@@ -218,10 +229,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.playSound("Pop")
                 TextInserter.insertAtCursor(text)
             case .success:
-                self.hud.show("🤔 Rien entendu")
+                self.hud.show("Rien entendu")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.hud.hide() }
             case .failure(let error):
-                self.hud.show("⚠️ Erreur de transcription")
+                self.hud.show("Erreur de transcription", style: .error)
                 NSLog("Murmure: dictée échouée: \(error)")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
             }
@@ -308,7 +319,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.notesWindow.reset()
             self.notesWindow.show()
             self.updateStatusIcon()
-            self.hud.show(mode == "remote" ? "🔴 Réunion Teams enregistrée" : "🔴 Réunion enregistrée")
+            self.hud.show(mode == "remote" ? "Réunion Teams en cours d'enregistrement" : "Réunion en cours d'enregistrement", style: .recording)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
         }
 
@@ -362,7 +373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 systemOffset = systemStart - reference
             }
 
-            self.hud.show("⏳ Transcription de la réunion en cours…")
+            self.hud.show("Transcription de la réunion en cours…", style: .working)
             self.backend.processMeeting(
                 micURL: micResult?.url,
                 systemURL: systemURL,
@@ -420,39 +431,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         backend.health { [weak self] healthy in
             guard let self else { return }
             self.backendHealthy = healthy
-            self.backendStatusItem.title = healthy ? "Backend : ✅ en ligne" : "Backend : ❌ hors ligne"
+            if healthy { self.backendStarting = false }
+            self.backendStatusItem.title = healthy
+                ? "Backend : ✅ en ligne"
+                : self.backendStarting ? "Backend : ⏳ démarrage…" : "Backend : ❌ hors ligne"
             self.updateStatusIcon()
+            self.autoStartBackendIfNeeded(healthy: healthy)
         }
     }
 
-    /// Lance backend/run.sh. Le dossier backend est demandé au premier
-    /// lancement puis mémorisé (UserDefaults "BackendDir").
-    @objc private func startBackend() {
-        if backendHealthy { return }
-        guard let backendDir = resolveBackendDir() else { return }
+    /// Backend embarqué dans le bundle (make_app.sh le copie dans Resources).
+    private func bundledBackendDir() -> URL? {
+        guard let resources = Bundle.main.resourceURL else { return nil }
+        let dir = resources.appendingPathComponent("backend", isDirectory: true)
+        let hasRunScript = FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("run.sh").path
+        )
+        return hasRunScript ? dir : nil
+    }
 
+    private func savedBackendDir() -> URL? {
+        guard let saved = UserDefaults.standard.string(forKey: "BackendDir") else { return nil }
+        let url = URL(fileURLWithPath: saved)
+        let hasRunScript = FileManager.default.fileExists(
+            atPath: url.appendingPathComponent("run.sh").path
+        )
+        return hasRunScript ? url : nil
+    }
+
+    /// Démarrage automatique : dès que le backend est injoignable et
+    /// qu'aucun processus lancé par l'app ne tourne, on (re)lance run.sh.
+    /// Garde-fou de 30 s pour ne pas boucler si le démarrage échoue.
+    private func autoStartBackendIfNeeded(healthy: Bool) {
+        guard !healthy else { return }
+        if let process = backendProcess, process.isRunning { return }
+        if let last = lastAutoStartAt, Date().timeIntervalSince(last) < 30 { return }
+        guard let dir = bundledBackendDir() ?? savedBackendDir() else { return }
+        lastAutoStartAt = Date()
+        launchBackend(from: dir)
+    }
+
+    private func launchBackend(from dir: URL) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [backendDir.appendingPathComponent("run.sh").path]
-        process.currentDirectoryURL = backendDir
+        process.arguments = [dir.appendingPathComponent("run.sh").path]
         do {
             try process.run()
             backendProcess = process
-            hud.show("⏳ Démarrage du backend (long au premier lancement)…")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.hud.hide() }
+            backendStarting = true
+            backendStatusItem.title = "Backend : ⏳ démarrage…"
         } catch {
-            showAlert(title: "Impossible de lancer le backend", message: error.localizedDescription)
+            NSLog("Murmure: lancement du backend impossible: \(error)")
         }
     }
 
+    /// Action du menu : utile seulement si le backend n'est ni embarqué ni
+    /// mémorisé (l'app le démarre toute seule sinon).
+    @objc private func startBackend() {
+        if backendHealthy { return }
+        guard let backendDir = resolveBackendDir() else { return }
+        launchBackend(from: backendDir)
+        hud.show("Démarrage du backend (long au premier lancement)…", style: .working)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.hud.hide() }
+    }
+
     private func resolveBackendDir() -> URL? {
-        let defaults = UserDefaults.standard
-        if let saved = defaults.string(forKey: "BackendDir") {
-            let url = URL(fileURLWithPath: saved)
-            if FileManager.default.fileExists(atPath: url.appendingPathComponent("run.sh").path) {
-                return url
-            }
-        }
+        if let bundled = bundledBackendDir() { return bundled }
+        if let saved = savedBackendDir() { return saved }
 
         NSApp.activate(ignoringOtherApps: true)
         let panel = NSOpenPanel()
@@ -466,7 +511,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showAlert(title: "Dossier invalide", message: "Ce dossier ne contient pas run.sh.")
             return nil
         }
-        defaults.set(url.path, forKey: "BackendDir")
+        UserDefaults.standard.set(url.path, forKey: "BackendDir")
         return url
     }
 

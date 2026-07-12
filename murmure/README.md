@@ -80,20 +80,6 @@ le backend fait tourner les modèles et renvoie le texte.
 
 ## Installation
 
-### 1. Le backend
-
-```bash
-cd murmure/backend
-./run.sh        # crée le venv, installe les dépendances, démarre le serveur
-```
-
-Au premier lancement, les modèles sont téléchargés depuis Hugging Face
-(~1,6 Go pour Whisper large-v3-turbo) puis mis en cache, ensuite tout est
-hors-ligne. Laisse ce terminal ouvert (ou lance le backend depuis le menu de
-l'app, voir plus bas).
-
-### 2. L'app macOS
-
 ```bash
 cd murmure/mac
 ./make_app.sh
@@ -101,7 +87,19 @@ cp -r build/Murmure.app /Applications/
 open /Applications/Murmure.app
 ```
 
-### 3. Les autorisations macOS (une seule fois)
+**Le backend est embarqué dans l'app** : Murmure le démarre toute seule au
+lancement et le relance s'il tombe, aucun terminal à laisser ouvert. Au tout
+premier lancement, l'app installe l'environnement Python (dans
+`~/Library/Application Support/Murmure`) et télécharge Whisper (~1,6 Go) :
+le menu affiche « Backend : ⏳ démarrage… » pendant ce temps, compte
+quelques minutes. Ensuite, tout est hors-ligne et immédiat. Avec « Lancer
+Murmure à l'ouverture de session » activé dans le menu, la dictée est
+disponible en permanence.
+
+> Pour le développement, `cd murmure/backend && ./run.sh` lance toujours le
+> backend à la main (venv local `.venv`).
+
+### Les autorisations macOS (une seule fois)
 
 Au premier lancement, macOS va demander :
 

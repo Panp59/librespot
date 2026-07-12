@@ -12,6 +12,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Murmure "$APP/Contents/MacOS/Murmure"
 cp Info.plist "$APP/Contents/Info.plist"
+cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
+# Backend Python embarqué : l'app le démarre toute seule (le venv est créé
+# au premier lancement dans ~/Library/Application Support/Murmure).
+rsync -a --exclude '.venv' --exclude '__pycache__' --exclude '*.pyc' \
+  ../backend/ "$APP/Contents/Resources/backend/"
 
 # Signature ad hoc : suffisante en local, et indispensable pour que les
 # autorisations TCC persistent entre deux lancements.
