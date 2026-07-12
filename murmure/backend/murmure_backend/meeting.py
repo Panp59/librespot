@@ -35,17 +35,77 @@ def _friendly_speaker_names(segments: list[dict], prefix: str = "Intervenant") -
         seg["speaker"] = mapping.get(seg["speaker"], seg["speaker"])
 
 
-def _transcribe_track(audio_path: str) -> list[dict]:
-    result = transcription.transcribe(audio_path)
-    return [
-        {
+def _transcribe_track(audio_path: str, *, with_words: bool = False) -> list[dict]:
+    result = transcription.transcribe(audio_path, word_timestamps=with_words)
+    segments = []
+    for seg in result.get("segments", []):
+        if not seg["text"].strip():
+            continue
+        entry = {
             "start": float(seg["start"]),
             "end": float(seg["end"]),
             "text": seg["text"].strip(),
         }
-        for seg in result.get("segments", [])
-        if seg["text"].strip()
-    ]
+        if with_words:
+            entry["words"] = [
+                {
+                    "start": float(w["start"]),
+                    "end": float(w["end"]),
+                    "word": w["word"],
+                }
+                for w in seg.get("words", [])
+            ]
+        segments.append(entry)
+    return segments
+
+
+def _split_by_speaker(segments: list[dict], turns: list[dict]) -> list[dict]:
+    """Attribution fine des locuteurs : chaque MOT est rattaché au tour de
+    parole qui le contient (un segment Whisper peut couvrir deux voix dans
+    une conversation), puis les mots consécutifs du même locuteur sont
+    regroupés en répliques."""
+    if not turns:
+        diarization.assign_speakers(segments, turns)
+        for seg in segments:
+            seg.pop("words", None)
+        return segments
+
+    def speaker_at(mid: float) -> str:
+        for turn in turns:
+            if turn["start"] <= mid <= turn["end"]:
+                return turn["speaker"]
+        nearest = min(
+            turns,
+            key=lambda t: min(abs(t["start"] - mid), abs(t["end"] - mid)),
+        )
+        return nearest["speaker"]
+
+    # Aplatis tous les mots ; un segment sans mots devient un « mot » unique.
+    words: list[dict] = []
+    for seg in segments:
+        if seg.get("words"):
+            words.extend(seg["words"])
+        else:
+            words.append({"start": seg["start"], "end": seg["end"], "word": " " + seg["text"]})
+
+    result: list[dict] = []
+    for word in words:
+        mid = (word["start"] + word["end"]) / 2
+        speaker = speaker_at(mid)
+        # Nouvelle réplique si le locuteur change ou après un long silence.
+        if result and result[-1]["speaker"] == speaker and word["start"] - result[-1]["end"] < 2.0:
+            result[-1]["end"] = word["end"]
+            result[-1]["text"] += word["word"]
+        else:
+            result.append({
+                "start": word["start"],
+                "end": word["end"],
+                "text": word["word"],
+                "speaker": speaker,
+            })
+    for seg in result:
+        seg["text"] = seg["text"].strip()
+    return [seg for seg in result if seg["text"]]
 
 
 def _shift_segments(segments: list[dict], offset: float) -> None:
@@ -82,18 +142,18 @@ def process_meeting(
             _shift_segments(mic_segments, mic_offset)
             segments.extend(mic_segments)
         if system_path:
-            sys_segments = _transcribe_track(system_path)
+            sys_segments = _transcribe_track(system_path, with_words=True)
             turns = diarization.diarize(system_path)
-            diarization.assign_speakers(sys_segments, turns)
+            sys_segments = _split_by_speaker(sys_segments, turns)
             _friendly_speaker_names(sys_segments, prefix="Interlocuteur")
             _shift_segments(sys_segments, system_offset)
             segments.extend(sys_segments)
     else:  # in_person
         if not mic_path:
             raise ValueError("Piste micro manquante pour une réunion en présentiel.")
-        segments = _transcribe_track(mic_path)
+        segments = _transcribe_track(mic_path, with_words=True)
         turns = diarization.diarize(mic_path)
-        diarization.assign_speakers(segments, turns)
+        segments = _split_by_speaker(segments, turns)
         _friendly_speaker_names(segments)
 
     segments.sort(key=lambda s: s["start"])

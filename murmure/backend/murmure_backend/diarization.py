@@ -34,12 +34,24 @@ def _get_pipeline():
                     "accepté les conditions du modèle sur Hugging Face et que tu es "
                     "connecté (huggingface-cli login) ou que HF_TOKEN est défini."
                 )
-            # Apple Silicon : on tente le GPU Metal, sinon CPU.
-            try:
-                _pipeline.to(torch.device("mps"))
-                logger.info("Diarization sur GPU (MPS).")
-            except Exception:
-                logger.info("MPS indisponible, diarization sur CPU.")
+            # CPU par défaut : sur Apple Silicon, le backend MPS de PyTorch
+            # produit des embeddings de voix dégradés avec pyannote, et le
+            # clustering fusionne alors tous les locuteurs en un seul.
+            # MURMURE_DIARIZATION_DEVICE=mps pour retenter le GPU.
+            import os
+
+            device = os.environ.get("MURMURE_DIARIZATION_DEVICE", "cpu").lower()
+            if device == "mps":
+                try:
+                    _pipeline.to(torch.device("mps"))
+                    logger.info("Diarization sur GPU (MPS), à la demande.")
+                except Exception:
+                    logger.info("MPS indisponible, diarization sur CPU.")
+            else:
+                logger.info(
+                    "Diarization sur CPU (fiable ; MURMURE_DIARIZATION_DEVICE=mps "
+                    "pour essayer le GPU)."
+                )
         return _pipeline
 
 

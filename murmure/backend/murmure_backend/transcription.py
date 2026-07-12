@@ -22,6 +22,7 @@ def transcribe(
     *,
     initial_prompt: str | None = None,
     language_override: str | None = None,
+    word_timestamps: bool = False,
 ) -> dict:
     """Transcrit un fichier audio. Retourne le dict mlx-whisper
     ({"text": ..., "segments": [{"start", "end", "text"}, ...]}).
@@ -46,6 +47,7 @@ def transcribe(
             language=language,
             initial_prompt=initial_prompt,
             condition_on_previous_text=True,
+            word_timestamps=word_timestamps,
         )
     logger.info("Transcription terminée (%d segments)", len(result.get("segments", [])))
     return result
