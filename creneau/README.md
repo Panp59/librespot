@@ -25,10 +25,10 @@ base SQLite, aucune dépendance externe obligatoire.
   reprogrammation, et **rappels automatiques** (ex. 24 h et 1 h avant,
   réglable par type de RDV). Sans SMTP configuré, les emails sont journalisés.
 - **SMS** (en plus des emails) : confirmation, rappels, annulation,
-  déplacement — envoyés au mobile de l'invité (champ optionnel du formulaire,
+  déplacement, envoyés au mobile de l'invité (champ optionnel du formulaire,
   numéros normalisés au format +33). Fournisseurs : **Brevo** ou **OVH SMS**.
 - **Surveillance intégrée** : contrôle automatique toutes les 10 minutes que
-  la réservation fonctionne vraiment — base de données, calcul des créneaux
+  la réservation fonctionne vraiment : base de données, calcul des créneaux
   (alerte si plus aucun créneau réservable sous 14 jours !), SMTP, accès
   Google Calendar de chaque hôte, boucle de rappels. **Alerte email/SMS de
   l'admin en cas de panne** (avec anti-spam 6 h) + message de rétablissement.
@@ -70,7 +70,7 @@ npm run dev
 | Variable | Rôle |
 |---|---|
 | `BASE_URL` | URL publique (liens des emails, OAuth Google) |
-| `SESSION_SECRET` | Secret de session — `openssl rand -hex 32` |
+| `SESSION_SECRET` | Secret de session (`openssl rand -hex 32`) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | Compte admin créé au premier démarrage |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Envoi des emails |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Sync Google Calendar + Meet |
@@ -121,7 +121,7 @@ authentification admin et protection des routes.
 ## Limites connues / pistes
 
 - Le build Docker n'a pas pu être vérifié dans l'environnement de dev
-  (registre Docker inaccessible) — signale-moi toute erreur au premier
+  (registre Docker inaccessible), signale-moi toute erreur au premier
   `docker compose up --build`.
 - Pas de round-robin d'équipe ni de paiement Stripe (volontairement, v1).
 - SQLite convient parfaitement à ce volume ; passage PostgreSQL possible en

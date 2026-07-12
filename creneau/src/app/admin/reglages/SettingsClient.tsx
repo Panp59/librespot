@@ -114,7 +114,7 @@ export default function SettingsClient(props: Props) {
         ) : props.googleConnected ? (
           <div className="flex items-center justify-between">
             <p className="text-sm text-green-300">
-              ✅ Connecté — vos occupations bloquent les créneaux et les RDV créent un
+              ✅ Connecté : vos occupations bloquent les créneaux et les RDV créent un
               événement avec lien Meet.
             </p>
             <a className="btn-secondary" href="/api/google/connect">
@@ -136,7 +136,7 @@ export default function SettingsClient(props: Props) {
 
       <Section title="Intégrer sur votre site (gmao.org…)">
         <p className="mb-3 text-sm text-slate-300">
-          Colle ce code dans ta page — remplace <code className="rounded bg-white/10 px-1">VOTRE-TYPE-DE-RDV</code>{' '}
+          Colle ce code dans ta page, puis remplace <code className="rounded bg-white/10 px-1">VOTRE-TYPE-DE-RDV</code>{' '}
           par le slug voulu (visible dans « Types de RDV ») :
         </p>
         <pre className="overflow-x-auto rounded-xl bg-black/50 p-4 text-xs leading-relaxed text-slate-100">

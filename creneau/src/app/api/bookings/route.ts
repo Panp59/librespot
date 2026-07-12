@@ -85,14 +85,14 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // Événement Google Calendar (+ lien Meet si visio) — non bloquant.
+  // Événement Google Calendar (+ lien Meet si visio), non bloquant.
   const questions = parseQuestions(eventType.questions);
   const answersText = questions
-    .map((q) => `${q.label} : ${body.answers[q.id] ?? '—'}`)
+    .map((q) => `${q.label} : ${body.answers[q.id] ?? 'non renseigné'}`)
     .join('\n');
   const google = await createCalendarEvent(eventType.user, {
     id: booking.id,
-    summary: `${eventType.name} — ${body.name}`,
+    summary: `${eventType.name} · ${body.name}`,
     description: `${answersText}\n\nRéservé via ${baseUrl()}\n${formatDateTimeFr(booking.startUtc, eventType.user.timezone)}`,
     startIsoUtc: start.toISO()!,
     endIsoUtc: end.toISO()!,

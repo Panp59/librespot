@@ -33,6 +33,17 @@ export default async function ManageBookingPage({
   const location = locationText({ booking, eventType: booking.eventType, host });
   const isLink = location.startsWith('http');
 
+  // Lien « Ajouter à Google Agenda » (utile quand l'invitation email
+  // n'a pas été importée automatiquement).
+  const gcalDate = (d: Date) =>
+    d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const googleCalendarUrl =
+    'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    `&text=${encodeURIComponent(`${booking.eventType.name} avec ${host.name}`)}` +
+    `&dates=${gcalDate(booking.startUtc)}/${gcalDate(booking.endUtc)}` +
+    `&details=${encodeURIComponent(`Gérer : ${`${process.env.BASE_URL || ''}/rdv/${token}`}`)}` +
+    `&location=${encodeURIComponent(location)}`;
+
   return (
     <main className="mx-auto max-w-lg px-4 py-16">
       {banner && !cancelled && (
@@ -74,15 +85,34 @@ export default async function ManageBookingPage({
         </div>
 
         {!cancelled && (
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href={`/rdv/${token}/reprogrammer`}
-              className="btn-secondary"
-            >
-              Reprogrammer
-            </Link>
-            <CancelButton token={token} />
-          </div>
+          <>
+            <div className="mt-6 flex flex-wrap gap-2 text-sm">
+              <a
+                href={googleCalendarUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-accent-light hover:underline"
+              >
+                Ajouter à Google Agenda ↗
+              </a>
+              <span className="text-slate-500">·</span>
+              <a
+                href={`/rdv/${token}/ics`}
+                className="font-medium text-accent-light hover:underline"
+              >
+                Télécharger l'invitation (.ics)
+              </a>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href={`/rdv/${token}/reprogrammer`}
+                className="btn-secondary"
+              >
+                Reprogrammer
+              </Link>
+              <CancelButton token={token} />
+            </div>
+          </>
         )}
 
         {cancelled && (

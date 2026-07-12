@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     let appName = window.owningApplication?.applicationName ?? "?"
                     let title = window.title ?? ""
                     let item = NSMenuItem(
-                        title: "\(appName) — \(String(title.prefix(40)))",
+                        title: "\(appName) · \(String(title.prefix(40)))",
                         action: #selector(self.startWindowRecording(_:)),
                         keyEquivalent: ""
                     )

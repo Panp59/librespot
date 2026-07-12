@@ -1,9 +1,29 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/db';
 import { parseQuestions } from '@/lib/utils';
 import BookingClient from './BookingClient';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ host: string; event: string }>;
+}): Promise<Metadata> {
+  const { host: hostSlug, event: eventSlug } = await params;
+  const host = await db.user.findUnique({ where: { slug: hostSlug } });
+  if (!host) return {};
+  const eventType = await db.eventType.findFirst({
+    where: { userId: host.id, slug: eventSlug, active: true },
+  });
+  if (!eventType) return {};
+  const settings = await db.settings.findUnique({ where: { id: 'main' } });
+  return {
+    title: `${eventType.name} avec ${host.name} · ${settings?.orgName ?? 'Créneau'}`,
+    description: eventType.description || `Réservez « ${eventType.name} » en ligne.`,
+  };
+}
 
 const LOCATION_LABELS: Record<string, string> = {
   MEET: '📹 Visioconférence (lien envoyé à la confirmation)',

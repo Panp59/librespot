@@ -47,7 +47,7 @@ async function main() {
       eventTypes: {
         create: [
           {
-            name: 'Démo — 30 min',
+            name: 'Démo (30 min)',
             slug: 'demo-30',
             description:
               'Une démonstration personnalisée de 30 minutes, en visio.',
@@ -75,7 +75,7 @@ async function main() {
 
   console.log(`Admin créé : ${user.email} (page publique : /${user.slug})`);
   if (!process.env.ADMIN_PASSWORD) {
-    console.log('⚠️  Mot de passe par défaut "admin123" — change-le vite !');
+    console.log('⚠️  Mot de passe par défaut "admin123", change-le vite !');
   }
 }
 

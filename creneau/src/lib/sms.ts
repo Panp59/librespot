@@ -42,7 +42,7 @@ export async function sendSms(to: string, message: string): Promise<void> {
     return;
   }
   if (!smsConfigured()) {
-    console.log(`[SMS non envoyé — fournisseur non configuré] À: ${phone} | ${message}`);
+    console.log(`[SMS non envoyé, fournisseur non configuré] À: ${phone} | ${message}`);
     return;
   }
   const provider = (process.env.SMS_PROVIDER || '').toLowerCase();

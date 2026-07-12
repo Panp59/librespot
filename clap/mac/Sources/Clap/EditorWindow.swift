@@ -245,7 +245,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Clap — \(session.directory.lastPathComponent)"
+        window.title = "Clap · \(session.directory.lastPathComponent)"
         window.contentView = content
         window.isReleasedWhenClosed = false
         window.delegate = self

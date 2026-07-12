@@ -38,7 +38,7 @@ type Mail = {
 
 async function send(mail: Mail): Promise<void> {
   if (!smtpConfigured()) {
-    console.log(`[mail non envoyé — SMTP non configuré] À: ${mail.to} | ${mail.subject}\n${mail.text}`);
+    console.log(`[mail non envoyé, SMTP non configuré] À: ${mail.to} | ${mail.subject}\n${mail.text}`);
     return;
   }
   try {
@@ -87,7 +87,7 @@ function bookingIcs(bundle: BookingBundle, method: 'REQUEST' | 'CANCEL', sequenc
     uid: booking.id,
     start: booking.startUtc,
     end: booking.endUtc,
-    summary: `${eventType.name} — ${booking.inviteeName} / ${host.name}`,
+    summary: `${eventType.name} · ${booking.inviteeName} / ${host.name}`,
     description: `Rendez-vous réservé via ${baseUrl()}\nGérer : ${manageUrl(booking)}`,
     location: locationText(bundle),
     organizerName: host.name,
@@ -110,7 +110,7 @@ export async function sendConfirmation(bundle: BookingBundle): Promise<void> {
 
   await send({
     to: booking.inviteeEmail,
-    subject: `Confirmé : ${eventType.name} avec ${host.name} — ${when}`,
+    subject: `Confirmé : ${eventType.name} avec ${host.name}, ${when}`,
     text: [
       `Bonjour ${booking.inviteeName},`,
       '',
@@ -128,7 +128,7 @@ export async function sendConfirmation(bundle: BookingBundle): Promise<void> {
 
   await send({
     to: host.email,
-    subject: `Nouveau RDV : ${eventType.name} avec ${booking.inviteeName} — ${formatDateTimeFr(booking.startUtc, host.timezone)}`,
+    subject: `Nouveau RDV : ${eventType.name} avec ${booking.inviteeName}, ${formatDateTimeFr(booking.startUtc, host.timezone)}`,
     text: [
       `${booking.inviteeName} (${booking.inviteeEmail}) a réservé « ${eventType.name} ».`,
       '',
@@ -154,7 +154,7 @@ export async function sendCancellation(bundle: BookingBundle, cancelledBy: strin
 
   await send({
     to: booking.inviteeEmail,
-    subject: `Annulé : ${eventType.name} — ${when}`,
+    subject: `Annulé : ${eventType.name}, ${when}`,
     text,
     ics: { content: ics, method: 'CANCEL' },
   });
@@ -173,7 +173,7 @@ export async function sendReschedule(bundle: BookingBundle): Promise<void> {
 
   await send({
     to: booking.inviteeEmail,
-    subject: `Reprogrammé : ${eventType.name} avec ${host.name} — ${when}`,
+    subject: `Reprogrammé : ${eventType.name} avec ${host.name}, ${when}`,
     text: [
       `Votre rendez-vous « ${eventType.name} » a été déplacé.`,
       '',
@@ -186,7 +186,7 @@ export async function sendReschedule(bundle: BookingBundle): Promise<void> {
   });
   await send({
     to: host.email,
-    subject: `Reprogrammé : ${eventType.name} avec ${booking.inviteeName} — ${formatDateTimeFr(booking.startUtc, host.timezone)}`,
+    subject: `Reprogrammé : ${eventType.name} avec ${booking.inviteeName}, ${formatDateTimeFr(booking.startUtc, host.timezone)}`,
     text: `Nouveau créneau : ${formatDateTimeFr(booking.startUtc, host.timezone)} (${host.timezone})`,
     ics: { content: ics, method: 'REQUEST' },
   });
@@ -198,7 +198,7 @@ export async function sendReminder(bundle: BookingBundle): Promise<void> {
 
   await send({
     to: booking.inviteeEmail,
-    subject: `Rappel : ${eventType.name} avec ${host.name} — ${when}`,
+    subject: `Rappel : ${eventType.name} avec ${host.name}, ${when}`,
     text: [
       `Bonjour ${booking.inviteeName},`,
       '',

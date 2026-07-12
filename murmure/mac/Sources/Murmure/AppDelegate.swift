@@ -183,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func dictationKeyDown() {
         guard backendHealthy else {
-            hud.show("⚠️ Backend hors ligne — menu Murmure → Démarrer le backend")
+            hud.show("⚠️ Backend hors ligne (menu Murmure → Démarrer le backend)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { self.hud.hide() }
             return
         }

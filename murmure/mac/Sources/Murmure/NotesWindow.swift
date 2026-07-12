@@ -36,7 +36,7 @@ final class NotesWindow: NSObject, NSWindowDelegate {
         textView.textContainerInset = NSSize(width: 8, height: 10)
         self.textView = textView
 
-        let hint = NSTextField(labelWithString: "Quelques mots-clés suffisent — ils guideront le compte-rendu.")
+        let hint = NSTextField(labelWithString: "Quelques mots-clés suffisent, ils guideront le compte-rendu.")
         hint.font = .systemFont(ofSize: 10)
         hint.textColor = .secondaryLabelColor
         hint.lineBreakMode = .byWordWrapping
@@ -62,7 +62,7 @@ final class NotesWindow: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Murmure — Notes de réunion"
+        window.title = "Notes de réunion"
         window.contentView = content
         window.isReleasedWhenClosed = false
         // Reste visible au-dessus de Teams/du plein écran, sur tous les bureaux.

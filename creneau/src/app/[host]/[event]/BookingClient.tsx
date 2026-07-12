@@ -249,7 +249,7 @@ export default function BookingClient({
                         setAnswers({ ...answers, [question.id]: e.target.value })
                       }
                     >
-                      <option value="">— Choisir —</option>
+                      <option value="">Choisir…</option>
                       {(question.options ?? []).map((option) => (
                         <option key={option} value={option}>
                           {option}

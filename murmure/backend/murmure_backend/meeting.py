@@ -119,7 +119,7 @@ def process_meeting(
     notes = notes.strip()
     if notes:
         (out_dir / "notes.md").write_text(
-            f"# {title} — Notes prises en réunion\n\n{notes}\n", encoding="utf-8"
+            f"# Notes de réunion : {title}\n\n{notes}\n", encoding="utf-8"
         )
 
     # Compte-rendu façon Granola (LLM local via Ollama). Jamais bloquant :
@@ -131,8 +131,8 @@ def process_meeting(
             summary_md = summary.generate(title, segments, notes=notes)
             summary_path = out_dir / "compte-rendu.md"
             summary_path.write_text(
-                f"# {title} — Compte-rendu\n\n"
-                f"*Réunion du {now:%d/%m/%Y à %H:%M} — généré localement par "
+                f"# Compte-rendu : {title}\n\n"
+                f"*Réunion du {now:%d/%m/%Y à %H:%M}. Généré localement par "
                 f"Murmure ({config.SUMMARY_MODEL}).*\n\n"
                 f"{summary_md}\n\n---\n\n"
                 f"Transcription complète : [transcription.md](transcription.md)\n",
@@ -158,7 +158,7 @@ def process_meeting(
 
 
 def _to_markdown(title: str, when: dt.datetime, segments: list[dict]) -> str:
-    lines = [f"# {title}", "", f"*Réunion du {when:%d/%m/%Y à %H:%M} — transcription Murmure*", ""]
+    lines = [f"# {title}", "", f"*Réunion du {when:%d/%m/%Y à %H:%M}. Transcription Murmure.*", ""]
     current_speaker = None
     for seg in segments:
         if seg["speaker"] != current_speaker:

@@ -161,7 +161,7 @@ export async function runHealthChecks(): Promise<HealthReport> {
             }
           : {
               name: 'google', label: 'Google Calendar', status: 'fail',
-              detail: `Accès agenda en échec pour : ${broken.join(', ')} (reconnexion nécessaire — risque de double réservation).`,
+              detail: `Accès agenda en échec pour : ${broken.join(', ')} (reconnexion nécessaire, risque de double réservation).`,
             }
       );
     }
@@ -202,7 +202,7 @@ async function alertAdmins(subject: string, text: string): Promise<void> {
   const email = process.env.HEALTH_ALERT_EMAIL || process.env.ADMIN_EMAIL;
   if (email) await sendAlertEmail(email, subject, text);
   const phone = process.env.HEALTH_ALERT_PHONE;
-  if (phone) await sendSms(phone, `${subject} — ${text.slice(0, 120)}`);
+  if (phone) await sendSms(phone, `${subject} : ${text.slice(0, 120)}`);
 }
 
 async function watchdogTick(): Promise<void> {
@@ -216,13 +216,13 @@ async function watchdogTick(): Promise<void> {
       if (!alreadyAlerted || now - alreadyAlerted > ALERT_COOLDOWN_MS) {
         s.alertedAt[check.name] = now;
         await alertAdmins(
-          `⚠️ Créneau — panne : ${check.label}`,
+          `⚠️ [Créneau] Panne : ${check.label}`,
           `${check.detail}\n\nContrôle complet : ${process.env.BASE_URL || ''}/api/health`
         );
       }
     } else if (alreadyAlerted && check.status === 'ok') {
       delete s.alertedAt[check.name];
-      await alertAdmins(`✅ Créneau — rétabli : ${check.label}`, check.detail);
+      await alertAdmins(`✅ [Créneau] Rétabli : ${check.label}`, check.detail);
     }
   }
 }

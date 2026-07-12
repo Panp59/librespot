@@ -79,7 +79,7 @@ def _append_history(text: str) -> None:
         with config.HISTORY_FILE.open("a", encoding="utf-8") as f:
             if is_new:
                 f.write("# Historique des dictées Murmure\n\n")
-            f.write(f"- **{dt.datetime.now():%d/%m/%Y %H:%M}** — {text}\n")
+            f.write(f"- **{dt.datetime.now():%d/%m/%Y %H:%M}** : {text}\n")
     except OSError:
         logger.warning("Impossible d'écrire l'historique : %s", config.HISTORY_FILE)
 

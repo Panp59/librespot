@@ -1,7 +1,7 @@
 # Murmure 🎙️
 
 Clone local de Wispr Flow pour macOS : **dictée vocale partout** (push-to-talk)
-et **transcription de réunions avec identification des locuteurs** — le tout
+et **transcription de réunions avec identification des locuteurs**, le tout
 avec des modèles qui tournent **100 % en local** sur ton Mac (Apple Silicon).
 Aucun audio ne quitte la machine.
 
@@ -18,13 +18,13 @@ Aucun audio ne quitte la machine.
      chronologiquement, avec « Moi » et « Interlocuteur 1, 2… ».
    - Export en **Markdown + JSON** dans `~/Documents/Murmure/Réunions/`.
 3. **Compte-rendu automatique (façon Granola)** : en plus de la transcription
-   brute, un LLM local (via **Ollama**) génère `compte-rendu.md` — résumé,
+   brute, un LLM local (via **Ollama**) génère `compte-rendu.md` : résumé,
    décisions, actions (« **Qui** : quoi »), points ouverts. Les longues
    réunions sont résumées en plusieurs passes. C'est ce fichier qui s'ouvre
    à la fin ; la transcription complète reste à côté.
 4. **Notes live** : au démarrage d'une réunion, une petite fenêtre flottante
    de notes s'ouvre (réaffichable via le menu, ⌘N). Quelques mots-clés
-   suffisent — à la fin, tes notes servent de **fil conducteur** au
+   suffisent : à la fin, tes notes servent de **fil conducteur** au
    compte-rendu : chaque point est développé à partir de la transcription,
    les contradictions sont signalées, et le reste est complété. Les notes
    brutes sont conservées dans `notes.md`.
@@ -48,7 +48,7 @@ le backend fait tourner les modèles et renvoie le texte.
 
 ## Prérequis
 
-- Mac **Apple Silicon** (M1 ou plus récent), macOS 13+ — idéalement 16 Go de
+- Mac **Apple Silicon** (M1 ou plus récent), macOS 13+, idéalement 16 Go de
   RAM ou plus (large-v3-turbo + pyannote tiennent très bien dans 24 Go).
 - **Xcode Command Line Tools** : `xcode-select --install`
 - **Homebrew**, puis : `brew install ffmpeg python@3.12`
@@ -60,7 +60,7 @@ le backend fait tourner les modèles et renvoie le texte.
   2. Connecte-toi : `pip install huggingface_hub && huggingface-cli login`
      (ou exporte `HF_TOKEN=hf_…` avant de lancer le backend).
 
-  > La dictée fonctionne sans ce compte — il n'est nécessaire que pour le
+  > La dictée fonctionne sans ce compte, il n'est nécessaire que pour le
   > « qui a dit quoi » des réunions.
 - **Ollama** (optionnel, pour le compte-rendu automatique) :
   ```bash
@@ -81,7 +81,7 @@ cd murmure/backend
 ```
 
 Au premier lancement, les modèles sont téléchargés depuis Hugging Face
-(~1,6 Go pour Whisper large-v3-turbo) puis mis en cache — ensuite tout est
+(~1,6 Go pour Whisper large-v3-turbo) puis mis en cache, ensuite tout est
 hors-ligne. Laisse ce terminal ouvert (ou lance le backend depuis le menu de
 l'app, voir plus bas).
 
@@ -113,7 +113,7 @@ Après avoir accordé Accessibilité, quitte et relance l'app.
   l'état.) **Échap** pendant l'enregistrement annule la dictée. Des sons
   discrets marquent le début/la fin (désactivables dans le menu).
 - **Vocabulaire personnalisé** : ajoute tes noms propres et ton jargon
-  (un par ligne) dans `~/Documents/Murmure/vocabulaire.txt` — ils seront
+  (un par ligne) dans `~/Documents/Murmure/vocabulaire.txt`, ils seront
   mieux reconnus. Les lignes commençant par `#` sont ignorées.
 - **Historique** : chaque dictée est ajoutée à
   `~/Documents/Murmure/Dictées.md` (désactivable avec `MURMURE_HISTORY=0`).
@@ -140,7 +140,7 @@ besoin), les comptes-rendus dans `~/Documents/Murmure/Réunions/`.
 | `MURMURE_LANGUAGE` | `fr` | Langue, ou `auto` pour la détection |
 | `MURMURE_OUTPUT_DIR` | `~/Documents/Murmure` | Dossier des comptes-rendus |
 | `MURMURE_PORT` | `8765` | Port du serveur local |
-| `HF_TOKEN` | — | Jeton Hugging Face (diarization) |
+| `HF_TOKEN` | (aucun) | Jeton Hugging Face (diarization) |
 | `MURMURE_SUMMARY` | `1` | Compte-rendu automatique (`0` pour désactiver) |
 | `MURMURE_SUMMARY_MODEL` | `qwen3:14b` | Modèle Ollama du compte-rendu |
 | `MURMURE_OLLAMA_URL` | `http://127.0.0.1:11434` | URL du serveur Ollama |
@@ -152,7 +152,7 @@ Exemple : `MURMURE_LANGUAGE=auto ./run.sh` pour des réunions bilingues FR/EN.
 - **Latence de dictée** : ~1 s pour une phrase courte avec large-v3-turbo sur
   un M-series récent. Pour encore plus de réactivité :
   `MURMURE_MODEL=mlx-community/whisper-medium-mlx` (léger compromis qualité).
-- **Diarization** : pyannote est très bon mais pas parfait — les locuteurs aux
+- **Diarization** : pyannote est très bon mais pas parfait, les locuteurs aux
   voix proches peuvent être confondus ; le nombre de locuteurs est détecté
   automatiquement.
 - En mode Teams, l'attribution est structurelle : ta piste micro = « Moi »,

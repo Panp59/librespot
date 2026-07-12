@@ -1,9 +1,9 @@
 # Clap 🎬
 
 Clone local de Screen Studio pour macOS : tu enregistres ton écran (ou une
-fenêtre), et Clap fabrique une vidéo « propre » — zooms fluides sur les
+fenêtre), et Clap fabrique une vidéo « propre », zooms fluides sur les
 clics, curseur redessiné et lissé, webcam en overlay, fond dégradé, marges,
-coins arrondis, ombre portée — avec un **éditeur** pour ajuster le résultat
+coins arrondis, ombre portée, avec un **éditeur** pour ajuster le résultat
 avant l'export. 100 % natif, 100 % local, aucun abonnement.
 
 ## Comment ça marche
@@ -35,8 +35,8 @@ L'aperçu de l'éditeur et l'export passent par **le même compositeur**
     raccourcis : **espace** = lecture/pause, **←/→** = image par image
     (**⇧←/⇧→** = par seconde) ;
   - **zooms modifiables** : détectés automatiquement sur les clics, puis
-    sélectionnables dans la timeline — désactiver, supprimer, ajouter un
-    zoom à la tête de lecture, **étirer les bords à la souris**, régler
+    sélectionnables dans la timeline pour les désactiver, les supprimer,
+    en ajouter un à la tête de lecture, **étirer les bords à la souris**, régler
     l'intensité globale ;
   - **rognage** début/fin ;
   - les réglages d'habillage sont **mémorisés** d'un enregistrement à
@@ -76,7 +76,7 @@ relance l'app.
 
 1. Menu 🎬 → active si besoin **Micro**, **Webcam**, **Touches**, puis
    « Enregistrer l'écran » ou « Enregistrer une fenêtre ».
-2. Compte à rebours (Échap pour annuler), puis fais ta démo — clique là où
+2. Compte à rebours (Échap pour annuler), puis fais ta démo, clique là où
    tu veux attirer l'attention, c'est là que la caméra zoomera.
 3. Menu 🎬 → « Arrêter et ouvrir l'éditeur » : ajuste zooms, rognage et
    habillage en voyant le résultat, puis « Exporter la vidéo… ».
@@ -85,7 +85,7 @@ Les sessions brutes restent dans `~/Movies/Clap/` ; « Rouvrir le dernier
 enregistrement » permet de rééditer/ré-exporter sans réenregistrer.
 
 > ⚠️ Si tu actives l'enregistrement des touches, celles-ci sont stockées en
-> clair dans `session.json` — ne tape pas de mot de passe pendant une
+> clair dans `session.json`, ne tape pas de mot de passe pendant une
 > capture avec cette option.
 
 ## Limites connues
@@ -94,7 +94,7 @@ enregistrement » permet de rééditer/ré-exporter sans réenregistrer.
   un export 1080p30 sur Apple Silicon.
 - L'aperçu de l'éditeur est fluide mais à ~15 i/s en lecture (le rendu
   exact reste celui de l'export).
-- Un seul écran ; l'audio système (sons de l'app) n'est pas capturé — la
+- Un seul écran ; l'audio système (sons de l'app) n'est pas capturé, la
   brique existe côté Murmure si on veut l'ajouter.
 - Webcam et micro alignés à ±1 image près.
 

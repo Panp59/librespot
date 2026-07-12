@@ -69,7 +69,7 @@ export default async function HomePage() {
       </div>
 
       <footer className="mt-16 text-center text-xs text-slate-400">
-        Propulsé par Créneau — vos données restent chez vous.
+        Propulsé par Créneau. Vos données restent chez vous.
       </footer>
     </main>
   );

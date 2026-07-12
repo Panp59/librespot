@@ -39,7 +39,7 @@ export default function BookingRow(props: Props) {
   if (cancelled) {
     return (
       <div className="p-4 text-sm text-slate-400 line-through">
-        {props.when} — {props.eventName} avec {props.inviteeName} (annulé)
+        {props.when} · {props.eventName} avec {props.inviteeName} (annulé)
       </div>
     );
   }
@@ -73,7 +73,7 @@ export default function BookingRow(props: Props) {
           {Object.entries(answers).map(([key, value]) => (
             <div key={key} className="flex gap-2">
               <dt className="font-medium text-slate-300">{key} :</dt>
-              <dd className="text-white">{value || '—'}</dd>
+              <dd className="text-white">{value || 'non renseigné'}</dd>
             </div>
           ))}
         </dl>

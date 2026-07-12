@@ -133,7 +133,7 @@ export default function EventTypesClient({
               className="input"
               value={editing.name}
               onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-              placeholder="Démo — 30 min"
+              placeholder="Démo (30 min)"
             />
           </div>
           <div>
@@ -337,7 +337,7 @@ export default function EventTypesClient({
             ))}
             {questions.length === 0 && (
               <p className="text-sm text-slate-400">
-                Aucune question — seuls le nom et l'email seront demandés.
+                Aucune question : seuls le nom et l'email seront demandés.
               </p>
             )}
           </div>
