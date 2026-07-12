@@ -28,7 +28,7 @@ model User {
   createdAt    DateTime    @default(now())
 }
 
-// Un type de rendez-vous réservable (ex. « Démo GMAO — 30 min »).
+// Un type de rendez-vous réservable (ex. « Démo GMAO (30 min) »).
 model EventType {
   id            String    @id @default(cuid())
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
