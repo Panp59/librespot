@@ -65,6 +65,7 @@ export default async function BookingPage({
             eventName={eventType.name}
             durationMin={eventType.durationMin}
             questions={parseQuestions(eventType.questions)}
+            collectPhone={eventType.collectPhone}
             mode="book"
           />
         </section>

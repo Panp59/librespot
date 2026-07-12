@@ -46,6 +46,8 @@ model EventType {
   // MEET (visio auto) | PHONE | ADDRESS | CUSTOM
   locationType  String    @default("MEET")
   locationDetail String   @default("")
+  // Demander le mobile de l'invité (rappels/notifications SMS).
+  collectPhone  Boolean   @default(true)
   // Questions personnalisées : JSON [{id,label,type,required,options}]
   questions     String    @default("[]")
   // Rappels avant RDV, en minutes : JSON [1440, 60]
@@ -78,6 +80,7 @@ model Booking {
   endUtc        DateTime
   inviteeName   String
   inviteeEmail  String
+  inviteePhone  String    @default("")
   inviteeTimezone String  @default("Europe/Paris")
   // Réponses aux questions personnalisées : JSON {questionId: réponse}
   answers       String    @default("{}")

@@ -9,6 +9,7 @@ type Props = {
   eventName: string;
   durationMin: number;
   questions: Question[];
+  collectPhone?: boolean;
   mode: 'book' | 'reschedule';
   manageToken?: string;
 };
@@ -31,6 +32,7 @@ export default function BookingClient({
   eventName,
   durationMin,
   questions,
+  collectPhone = false,
   mode,
   manageToken,
 }: Props) {
@@ -49,6 +51,7 @@ export default function BookingClient({
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -131,6 +134,7 @@ export default function BookingClient({
                 start: selectedSlot,
                 name,
                 email,
+                phone,
                 timezone,
                 answers,
               }
@@ -205,6 +209,21 @@ export default function BookingClient({
                   placeholder="marie@societe.fr"
                 />
               </div>
+              {collectPhone && (
+                <div>
+                  <label className="label" htmlFor="booking-phone">
+                    Mobile (pour les rappels SMS)
+                  </label>
+                  <input
+                    id="booking-phone"
+                    className="input"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="06 12 34 56 78"
+                  />
+                </div>
+              )}
               {questions.map((question) => (
                 <div key={question.id}>
                   <label className="label" htmlFor={`q-${question.id}`}>

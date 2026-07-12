@@ -1,5 +1,7 @@
 import { db } from './db';
-import { sendReminder } from './mail';
+import { reminderHeartbeat } from './health';
+import { manageUrl, sendReminder } from './mail';
+import { smsReminder } from './sms';
 import { parseJsonArray } from './utils';
 
 let started = false;
@@ -16,6 +18,7 @@ export function startReminderLoop(): void {
 }
 
 async function tick(): Promise<void> {
+  reminderHeartbeat();
   const now = Date.now();
   const bookings = await db.booking.findMany({
     where: { status: 'CONFIRMED', startUtc: { gte: new Date(now) } },
@@ -34,11 +37,13 @@ async function tick(): Promise<void> {
           where: { id: booking.id },
           data: { remindersSent: JSON.stringify(sent) },
         });
-        await sendReminder({
+        const bundle = {
           booking,
           eventType: booking.eventType,
           host: booking.eventType.user,
-        });
+        };
+        await sendReminder(bundle);
+        await smsReminder(bundle, manageUrl(booking));
       }
     }
   }

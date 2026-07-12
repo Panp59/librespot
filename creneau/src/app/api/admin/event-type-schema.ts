@@ -20,6 +20,7 @@ export const eventTypeSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#4f46e5'),
   locationType: z.enum(['MEET', 'PHONE', 'ADDRESS', 'CUSTOM']).default('MEET'),
   locationDetail: z.string().max(500).default(''),
+  collectPhone: z.boolean().default(true),
   questions: z.string().refine(isJsonArray, 'JSON invalide').default('[]'),
   reminders: z.string().refine(isJsonArray, 'JSON invalide').default('[1440,60]'),
   active: z.boolean().default(true),

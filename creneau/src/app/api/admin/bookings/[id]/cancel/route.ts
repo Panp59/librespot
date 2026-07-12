@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { deleteCalendarEvent } from '@/lib/google';
 import { sendCancellation } from '@/lib/mail';
+import { smsCancellation } from '@/lib/sms';
 
 export async function POST(
   _request: NextRequest,
@@ -26,9 +27,8 @@ export async function POST(
     data: { status: 'CANCELLED' },
   });
   await deleteCalendarEvent(booking.eventType.user, booking.googleEventId);
-  await sendCancellation(
-    { booking: updated, eventType: booking.eventType, host: booking.eventType.user },
-    user.name
-  );
+  const bundle = { booking: updated, eventType: booking.eventType, host: booking.eventType.user };
+  await sendCancellation(bundle, user.name);
+  await smsCancellation(bundle);
   return NextResponse.json({ ok: true });
 }

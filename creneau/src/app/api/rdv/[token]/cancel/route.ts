@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { deleteCalendarEvent } from '@/lib/google';
 import { sendCancellation } from '@/lib/mail';
+import { smsCancellation } from '@/lib/sms';
 
 export async function POST(
   _request: NextRequest,
@@ -25,10 +26,9 @@ export async function POST(
   });
 
   await deleteCalendarEvent(booking.eventType.user, booking.googleEventId);
-  await sendCancellation(
-    { booking: updated, eventType: booking.eventType, host: booking.eventType.user },
-    booking.inviteeName
-  );
+  const bundle = { booking: updated, eventType: booking.eventType, host: booking.eventType.user };
+  await sendCancellation(bundle, booking.inviteeName);
+  await smsCancellation(bundle);
 
   return NextResponse.json({ ok: true });
 }

@@ -24,6 +24,16 @@ base SQLite, aucune dépendance externe obligatoire.
 - **Emails** : confirmation (avec invitation .ics), annulation,
   reprogrammation, et **rappels automatiques** (ex. 24 h et 1 h avant,
   réglable par type de RDV). Sans SMTP configuré, les emails sont journalisés.
+- **SMS** (en plus des emails) : confirmation, rappels, annulation,
+  déplacement — envoyés au mobile de l'invité (champ optionnel du formulaire,
+  numéros normalisés au format +33). Fournisseurs : **Brevo** ou **OVH SMS**.
+- **Surveillance intégrée** : contrôle automatique toutes les 10 minutes que
+  la réservation fonctionne vraiment — base de données, calcul des créneaux
+  (alerte si plus aucun créneau réservable sous 14 jours !), SMTP, accès
+  Google Calendar de chaque hôte, boucle de rappels. **Alerte email/SMS de
+  l'admin en cas de panne** (avec anti-spam 6 h) + message de rétablissement.
+  État visible en haut du tableau de bord admin, et endpoint `/api/health`
+  (200/503) prêt pour un moniteur externe type UptimeRobot.
 - **L'invité gère son RDV** : lien unique pour annuler ou reprogrammer.
 - **Admin en français** : tableau des RDV à venir (réponses au formulaire,
   lien visio, annulation), éditeur de types de RDV, grille de disponibilités,
@@ -64,6 +74,12 @@ npm run dev
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | Compte admin créé au premier démarrage |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Envoi des emails |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Sync Google Calendar + Meet |
+| `SMS_PROVIDER` | `brevo` ou `ovh` (vide = SMS journalisés) |
+| `SMS_SENDER` | Nom d'expéditeur SMS (11 caractères max) |
+| `BREVO_API_KEY` | Clé API Brevo (si `brevo`) |
+| `OVH_APP_KEY` / `OVH_APP_SECRET` / `OVH_CONSUMER_KEY` / `OVH_SERVICE_NAME` | Identifiants OVH SMS (si `ovh`) |
+| `HEALTH_ALERT_EMAIL` | Email alerté en cas de panne (défaut : admin) |
+| `HEALTH_ALERT_PHONE` | Mobile alerté par SMS en cas de panne |
 
 ### Activer Google Calendar
 

@@ -35,6 +35,7 @@ export default async function EventTypesPage() {
             color: eventType.color,
             locationType: eventType.locationType,
             locationDetail: eventType.locationDetail,
+            collectPhone: eventType.collectPhone,
             questions: eventType.questions,
             reminders: eventType.reminders,
             active: eventType.active,

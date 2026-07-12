@@ -86,6 +86,21 @@ export async function getBusyIntervals(
   }
 }
 
+/** Contrôle de santé : vérifie l'accès réel à l'agenda (lève une erreur si KO,
+ *  contrairement à getBusyIntervals qui dégrade silencieusement). */
+export async function checkGoogleAccess(user: User): Promise<void> {
+  const auth = clientFor(user);
+  if (!auth) throw new Error('non connecté');
+  const calendar = google.calendar({ version: 'v3', auth });
+  await calendar.freebusy.query({
+    requestBody: {
+      timeMin: new Date().toISOString(),
+      timeMax: new Date(Date.now() + 3_600_000).toISOString(),
+      items: [{ id: 'primary' }],
+    },
+  });
+}
+
 type BookingInfo = {
   id: string;
   summary: string;

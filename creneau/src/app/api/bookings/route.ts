@@ -4,7 +4,8 @@ import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { createCalendarEvent } from '@/lib/google';
-import { sendConfirmation } from '@/lib/mail';
+import { manageUrl, sendConfirmation } from '@/lib/mail';
+import { normalizePhone, smsConfirmation } from '@/lib/sms';
 import { isSlotAvailable } from '@/lib/slots';
 import { baseUrl, formatDateTimeFr, parseQuestions } from '@/lib/utils';
 
@@ -13,6 +14,7 @@ const bodySchema = z.object({
   start: z.string().min(1),
   name: z.string().trim().min(1).max(200),
   email: z.string().trim().email(),
+  phone: z.string().trim().max(30).default(''),
   timezone: z.string().min(1).max(64),
   answers: z.record(z.string(), z.string().max(4000)).default({}),
 });
@@ -42,6 +44,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Téléphone : optionnel, mais s'il est fourni il doit être valide
+  // (il sert aux rappels SMS).
+  let phone = '';
+  if (body.phone) {
+    const normalized = normalizePhone(body.phone);
+    if (!normalized) {
+      return NextResponse.json(
+        { error: 'Numéro de téléphone invalide (ex. 06 12 34 56 78).' },
+        { status: 400 }
+      );
+    }
+    phone = normalized;
+  }
+
   const start = DateTime.fromISO(body.start, { zone: 'utc' });
   if (!start.isValid) {
     return NextResponse.json({ error: 'Créneau invalide.' }, { status: 400 });
@@ -62,6 +78,7 @@ export async function POST(request: NextRequest) {
       endUtc: end.toJSDate(),
       inviteeName: body.name,
       inviteeEmail: body.email,
+      inviteePhone: phone,
       inviteeTimezone: body.timezone,
       answers: JSON.stringify(body.answers),
       manageToken: randomBytes(24).toString('hex'),
@@ -92,11 +109,9 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  await sendConfirmation({
-    booking: finalBooking,
-    eventType,
-    host: eventType.user,
-  });
+  const bundle = { booking: finalBooking, eventType, host: eventType.user };
+  await sendConfirmation(bundle);
+  await smsConfirmation(bundle, manageUrl(finalBooking));
 
   return NextResponse.json({ token: booking.manageToken });
 }

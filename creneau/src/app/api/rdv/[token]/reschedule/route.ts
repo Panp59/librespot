@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { updateCalendarEvent } from '@/lib/google';
 import { sendReschedule } from '@/lib/mail';
+import { smsReschedule } from '@/lib/sms';
 import { isSlotAvailable } from '@/lib/slots';
 
 const bodySchema = z.object({
@@ -58,11 +59,9 @@ export async function POST(
     start.toISO()!,
     end.toISO()!
   );
-  await sendReschedule({
-    booking: updated,
-    eventType: booking.eventType,
-    host: booking.eventType.user,
-  });
+  const bundle = { booking: updated, eventType: booking.eventType, host: booking.eventType.user };
+  await sendReschedule(bundle);
+  await smsReschedule(bundle);
 
   return NextResponse.json({ ok: true });
 }

@@ -3,8 +3,19 @@ import type { Booking, EventType, User } from '@prisma/client';
 import { buildIcs } from './ics';
 import { baseUrl, formatDateTimeFr } from './utils';
 
-function smtpConfigured(): boolean {
+export function smtpConfigured(): boolean {
   return Boolean(process.env.SMTP_HOST);
+}
+
+/** Teste la connexion SMTP (contrôle de santé). Lève une erreur si KO. */
+export async function verifySmtp(): Promise<void> {
+  if (!smtpConfigured()) throw new Error('SMTP non configuré');
+  await transporter().verify();
+}
+
+/** Email brut (alertes de surveillance). */
+export async function sendAlertEmail(to: string, subject: string, text: string): Promise<void> {
+  await send({ to, subject, text });
 }
 
 function transporter() {

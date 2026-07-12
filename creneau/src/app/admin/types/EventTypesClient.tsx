@@ -15,6 +15,7 @@ type EventTypeData = {
   color: string;
   locationType: string;
   locationDetail: string;
+  collectPhone: boolean;
   questions: string;
   reminders: string;
   active: boolean;
@@ -40,6 +41,7 @@ const EMPTY: EventTypeData = {
   color: '#4f46e5',
   locationType: 'MEET',
   locationDetail: '',
+  collectPhone: true,
   questions: '[]',
   reminders: '[1440,60]',
   active: true,
@@ -233,6 +235,16 @@ export default function EventTypesClient({
               />
             </div>
           )}
+          <div className="flex items-end pb-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={editing.collectPhone}
+                onChange={(e) => setEditing({ ...editing, collectPhone: e.target.checked })}
+              />
+              Demander le mobile (rappels SMS)
+            </label>
+          </div>
           <div>
             <label className="label">Rappels avant RDV (minutes, séparés par des virgules)</label>
             <input

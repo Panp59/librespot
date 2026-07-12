@@ -16,6 +16,15 @@ services:
       SMTP_FROM: ${SMTP_FROM:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SMS_PROVIDER: ${SMS_PROVIDER:-}
+      SMS_SENDER: ${SMS_SENDER:-Creneau}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      OVH_APP_KEY: ${OVH_APP_KEY:-}
+      OVH_APP_SECRET: ${OVH_APP_SECRET:-}
+      OVH_CONSUMER_KEY: ${OVH_CONSUMER_KEY:-}
+      OVH_SERVICE_NAME: ${OVH_SERVICE_NAME:-}
+      HEALTH_ALERT_EMAIL: ${HEALTH_ALERT_EMAIL:-}
+      HEALTH_ALERT_PHONE: ${HEALTH_ALERT_PHONE:-}
     volumes:
       - creneau-data:/data
     restart: unless-stopped
