@@ -453,6 +453,7 @@ final class EditorWindow: NSWindow {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.command),
+           !event.modifierFlags.contains(.shift),
            !event.modifierFlags.contains(.option),
            !event.modifierFlags.contains(.control) {
             switch event.charactersIgnoringModifiers?.lowercased() {
@@ -526,6 +527,10 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
         )
         window.title = fileURL.lastPathComponent
         window.minSize = NSSize(width: 760, height: 420)
+        // AppKit libère lui-même une fenêtre fermée par défaut ; combiné à
+        // notre référence forte, cela ferait une double libération (crash à
+        // la fermeture). ARC s'en charge très bien tout seul.
+        window.isReleasedWhenClosed = false
 
         super.init()
         window.annotator = self
@@ -546,7 +551,11 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         colorObservation = nil
-        Self.active.removeAll { $0 === self }
+        // Différé : se retirer de la liste ici détruirait le contrôleur (et
+        // la fenêtre) au beau milieu de la fermeture en cours.
+        DispatchQueue.main.async {
+            Self.active.removeAll { $0 === self }
+        }
     }
 
     // MARK: interface
