@@ -134,6 +134,9 @@ final class Sampler {
     static func focusedWindowTitle(pid: pid_t) -> String? {
         guard AXIsProcessTrusted() else { return nil }
         let appElement = AXUIElementCreateApplication(pid)
+        // Sans délai maximal, une app occupée bloquerait ce thread jusqu'à
+        // 6 secondes à chaque échantillon.
+        AXUIElementSetMessagingTimeout(appElement, 0.5)
         var windowValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(
             appElement, kAXFocusedWindowAttribute as CFString, &windowValue
@@ -165,7 +168,7 @@ final class Sampler {
         for window in info {
             guard let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
                   let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
                   bounds.contains(point),
                   let pid = window[kCGWindowOwnerPID as String] as? Int
             else { continue }

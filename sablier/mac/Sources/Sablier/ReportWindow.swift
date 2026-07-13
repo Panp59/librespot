@@ -49,7 +49,10 @@ struct DayReport {
                 blocks.append((session.app, session.start, session.end))
             }
         }
-        report.contextSwitches = max(0, blocks.count - 1)
+        // Revenir sur la même app après une pause café n'est pas une
+        // bascule : on ne compte que les transitions entre apps différentes.
+        report.contextSwitches = zip(blocks, blocks.dropFirst())
+            .filter { $0.app != $1.app }.count
         if let longest = blocks.max(by: {
             $0.end.timeIntervalSince($0.start) < $1.end.timeIntervalSince($1.start)
         }) {
@@ -306,6 +309,12 @@ final class WeekView: NSView {
     }
 }
 
+/// Vue document inversée : sans ça, NSScrollView ancre le contenu en BAS
+/// (le rapport s'ouvrirait déroulé à la fin, l'en-tête hors écran).
+final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
+}
+
 // MARK: - Fenêtre de rapport
 
 final class ReportWindowController: NSObject, NSWindowDelegate {
@@ -388,7 +397,7 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         summaryLabel.font = .systemFont(ofSize: 13)
         summaryLabel.isSelectable = true
 
-        let stack = NSStackView(views: [
+        let stack = FlippedStackView(views: [
             header,
             statsLabel,
             timeline,
@@ -420,7 +429,10 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             stack.widthAnchor.constraint(equalTo: clip.widthAnchor),
         ])
 
-        // Largeurs pleines pour les vues dessinées.
+        // Largeurs pleines pour l'en-tête (sinon l'espaceur ne pousse rien
+        // à droite) et pour les vues dessinées.
+        header.translatesAutoresizingMaskIntoConstraints = false
+        header.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         for view in [timeline, categoryBars, appBars, weekView] as [NSView] {
             view.translatesAutoresizingMaskIntoConstraints = false
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
@@ -538,14 +550,22 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         let report = DayReport.build(day: displayedDay)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        // Champs entre guillemets, guillemets doublés, retours ligne aplatis :
+        // les titres de fenêtres contiennent n'importe quoi.
+        func field(_ value: String) -> String {
+            let flat = value
+                .replacingOccurrences(of: "\r", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(flat)\""
+        }
         var csv = "debut;fin;duree_s;application;titre;categorie\n"
         for session in report.sessions {
             let category = Categorizer.category(for: session, rules: report.rules)
-            let title = session.title.replacingOccurrences(of: ";", with: ",")
             csv += "\(formatter.string(from: session.start));"
                 + "\(formatter.string(from: session.end));"
                 + "\(Int(session.duration));"
-                + "\(session.app);\(title);\(category)\n"
+                + "\(field(session.app));\(field(session.title));\(field(category))\n"
         }
 
         let dayFormatter = DateFormatter()
