@@ -7,6 +7,7 @@ Clone local de Timing (96 euros par an) : suivi du temps automatique sur Mac, sa
 Pas de chronomètre à lancer ni de projet à déclarer : c'est justement fait pour les journées où on jongle entre démos, mails, dev et devis. La fragmentation devient une donnée mesurée (nombre de changements de contexte, plus longue période de concentration) au lieu d'un problème de saisie.
 
 - **Capteur** : app au premier plan + titre de la fenêtre (optionnel), toutes les 5 secondes. Au-delà de 3 minutes sans clavier ni souris, le temps ne compte plus, et la session s'arrête rétroactivement au dernier geste.
+- **Multi-écrans** : macOS fait défiler la fenêtre sous la souris sans lui donner le focus. Quand le dernier geste est un défilement au-dessus d'une autre app que celle qui a le focus clavier, Sablier attribue le temps à l'app réellement lue, celle sous le pointeur.
 - **Catégories par règles** : un simple fichier texte, une règle par ligne (`motif => Catégorie`). Le motif est cherché dans l'app et le titre de fenêtre. Les règles sont rétroactives : vous les affinez, tout l'historique se reclasse.
 - **Rapport** : frise chronologique colorée de la journée (survolez pour le détail), totaux par catégorie, top des applications, statistiques de fragmentation, vue semaine, export CSV.
 - **Bilan IA optionnel** : un bouton envoie les totaux du jour au LLM local (Ollama) qui rédige un court bilan en français. Jamais bloquant, jamais dans le cloud.

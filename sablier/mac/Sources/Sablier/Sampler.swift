@@ -64,9 +64,32 @@ final class Sampler {
             closeCurrentSession(at: now)
             return
         }
-        let bundle = frontmost.bundleIdentifier ?? "inconnu"
-        let app = frontmost.localizedName ?? bundle
-        let title = Self.focusedWindowTitle(pid: frontmost.processIdentifier) ?? ""
+        var bundle = frontmost.bundleIdentifier ?? "inconnu"
+        var app = frontmost.localizedName ?? bundle
+        var title = Self.focusedWindowTitle(pid: frontmost.processIdentifier) ?? ""
+
+        // Multi-écrans : macOS fait défiler la fenêtre sous la souris sans
+        // lui donner le focus. Si le dernier geste est un défilement et que
+        // la souris survole la fenêtre d'une AUTRE app, c'est elle qu'on lit
+        // réellement : on attribue le temps à l'app sous le pointeur.
+        let scrollIdle = CGEventSource.secondsSinceLastEventType(
+            .combinedSessionState, eventType: .scrollWheel
+        )
+        let keyIdle = CGEventSource.secondsSinceLastEventType(
+            .combinedSessionState, eventType: .keyDown
+        )
+        let clickIdle = CGEventSource.secondsSinceLastEventType(
+            .combinedSessionState, eventType: .leftMouseDown
+        )
+        if scrollIdle < Self.tickInterval, scrollIdle < keyIdle, scrollIdle < clickIdle,
+           let pointed = Self.appUnderPointer(),
+           pointed.processIdentifier != frontmost.processIdentifier {
+            bundle = pointed.bundleIdentifier ?? "inconnu"
+            app = pointed.localizedName ?? bundle
+            // Pas de titre fiable pour une fenêtre non focalisée : on reste
+            // au niveau de l'app plutôt que de risquer un faux titre.
+            title = ""
+        }
 
         if var open = current {
             if open.session.bundle == bundle && open.session.title == title {
@@ -121,6 +144,34 @@ final class Sampler {
             window, kAXTitleAttribute as CFString, &titleValue
         ) == .success else { return nil }
         return titleValue as? String
+    }
+
+    /// L'application propriétaire de la fenêtre sous le pointeur.
+    /// Les positions de fenêtres sont publiques (aucune autorisation) ;
+    /// seuls leurs TITRES exigeraient Enregistrement de l'écran, on s'en passe.
+    static func appUnderPointer() -> NSRunningApplication? {
+        let mouse = NSEvent.mouseLocation
+        guard let primary = NSScreen.screens.first else { return nil }
+        // NSEvent.mouseLocation a l'origine en BAS à gauche de l'écran
+        // principal, les fenêtres CGWindow en HAUT à gauche.
+        let point = CGPoint(x: mouse.x, y: primary.frame.height - mouse.y)
+
+        guard let info = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]] else { return nil }
+
+        // La liste est ordonnée du premier plan vers l'arrière : la première
+        // fenêtre normale (layer 0) qui contient le point gagne.
+        for window in info {
+            guard let layer = window[kCGWindowLayer as String] as? Int, layer == 0,
+                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsDict),
+                  bounds.contains(point),
+                  let pid = window[kCGWindowOwnerPID as String] as? Int
+            else { continue }
+            return NSRunningApplication(processIdentifier: pid_t(pid))
+        }
+        return nil
     }
 
     static var accessibilityGranted: Bool { AXIsProcessTrusted() }
