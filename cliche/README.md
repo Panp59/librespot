@@ -7,10 +7,10 @@ Clone local de CleanShot X pour macOS. Capture d'écran, annotation, OCR, éping
 - **Capture de zone** (⇧⌘7) : sélection au lasso, comme l'outil natif mais en mieux rangé.
 - **Capture de fenêtre** (⇧⌘8) : survolez une fenêtre et cliquez. Ombre incluse (désactivable).
 - **Capture d'écran entier** (⇧⌘9).
-- **Carte d'actions rapides** : après chaque capture, une carte apparaît en bas à droite avec l'aperçu et les actions : Annoter, Copier, Texte (OCR), Épingler, Finder.
-- **Éditeur d'annotations** : flèche, cadre, ellipse, trait, surligneur, texte, pixelisation (pour masquer une info sensible), badges numérotés, recadrage. Annulation illimitée (⌘Z), couleur et épaisseur réglables.
-- **Joli fond** : une case à cocher ajoute marge, dégradé, coins arrondis et ombre portée. Parfait pour une doc ou un post.
-- **Épinglage** : la capture flotte au-dessus de toutes les fenêtres. Glisser pour déplacer, molette pour redimensionner, double-clic pour fermer.
+- **Carte d'actions rapides** : après chaque capture, une carte apparaît en bas à droite avec l'aperçu et les actions : Annoter, Copier, Texte (OCR), Épingler, Finder, corbeille. Un clic sur l'aperçu ouvre directement l'éditeur.
+- **Éditeur d'annotations** : flèche, cadre, ellipse, trait, surligneur, texte, pixelisation (pour masquer une info sensible), badges numérotés, recadrage. Annuler (⌘Z) et rétablir (⌘⇧Z), couleur et épaisseur réglables, changement d'outil avec les touches 1 à 9. Les dimensions de l'image s'affichent dans le titre de la fenêtre.
+- **Joli fond** : une case à cocher ajoute marge, dégradé, coins arrondis et ombre portée, avec aperçu fidèle dans l'éditeur. Parfait pour une doc ou un post.
+- **Épinglage** : la capture flotte au-dessus de toutes les fenêtres. Glisser pour déplacer, molette pour redimensionner, double-clic pour fermer, clic droit pour copier, revenir à la taille réelle ou fermer.
 - **Extraction de texte (OCR)** : reconnaissance locale via Vision (français et anglais), résultat direct dans le presse-papiers.
 - **Copie automatique** : chaque capture part aussi dans le presse-papiers (désactivable).
 - Les captures sont enregistrées dans `~/Images/Cliché` (dossier configurable).
@@ -56,7 +56,7 @@ Tout est dans le menu de la barre de menus, sous Réglages :
 | ⇧⌘9 | Capturer l'écran |
 | Échap | Annuler la capture en cours |
 
-Dans l'éditeur : ⌘Z annuler, ⌘C copier, ⌘S enregistrer, ⌘W fermer, Entrée enregistrer.
+Dans l'éditeur : ⌘Z annuler, ⌘⇧Z rétablir, ⌘C copier, ⌘S enregistrer, ⌘W ou Échap fermer, Entrée enregistrer, touches 1 à 9 pour changer d'outil.
 
 ## Hors périmètre (v1)
 

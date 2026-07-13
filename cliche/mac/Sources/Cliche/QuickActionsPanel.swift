@@ -27,7 +27,7 @@ final class QuickActionsPanel: NSObject {
     private func present() {
         guard let screen = NSScreen.main else { return }
 
-        let width: CGFloat = 300
+        let width: CGFloat = 340
         let thumbHeight: CGFloat = 150
         let barHeight: CGFloat = 44
         let size = NSSize(width: width, height: thumbHeight + barHeight)
@@ -65,20 +65,26 @@ final class QuickActionsPanel: NSObject {
         thumb.wantsLayer = true
         thumb.layer?.cornerRadius = 8
         thumb.layer?.masksToBounds = true
+        thumb.toolTip = "Cliquer pour annoter"
+        thumb.addGestureRecognizer(NSClickGestureRecognizer(
+            target: self, action: #selector(annotate)
+        ))
         root.addSubview(thumb)
 
-        let actions: [(String, Selector)] = [
-            ("Annoter", #selector(annotate)),
-            ("Copier", #selector(copyImage)),
-            ("Texte", #selector(ocr)),
-            ("Épingler", #selector(pin)),
-            ("Finder", #selector(reveal)),
+        let actions: [(String, Selector, String)] = [
+            ("Annoter", #selector(annotate), "Ouvrir l'éditeur d'annotations"),
+            ("Copier", #selector(copyImage), "Copier dans le presse-papiers"),
+            ("Texte", #selector(ocr), "Extraire le texte (OCR local)"),
+            ("Épingler", #selector(pin), "Faire flotter au-dessus des fenêtres"),
+            ("Finder", #selector(reveal), "Afficher dans le Finder"),
+            ("🗑", #selector(deleteCapture), "Placer dans la corbeille"),
         ]
-        let buttons: [NSView] = actions.map { title, action in
+        let buttons: [NSView] = actions.map { title, action, tooltip in
             let button = NSButton(title: title, target: self, action: action)
             button.bezelStyle = .rounded
             button.controlSize = .small
             button.font = .systemFont(ofSize: 11)
+            button.toolTip = tooltip
             return button
         }
         let closeButton = NSButton(title: "✕", target: self, action: #selector(closeClicked))
@@ -163,6 +169,16 @@ final class QuickActionsPanel: NSObject {
     @objc private func reveal() {
         close(animated: true)
         NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+    }
+
+    @objc private func deleteCapture() {
+        close(animated: true)
+        do {
+            try FileManager.default.trashItem(at: fileURL, resultingItemURL: nil)
+            Toast.shared.show("Capture placée dans la corbeille")
+        } catch {
+            Toast.shared.show("Suppression impossible : \(error.localizedDescription)")
+        }
     }
 
     @objc private func closeClicked() {

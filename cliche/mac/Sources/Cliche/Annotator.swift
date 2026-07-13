@@ -356,6 +356,28 @@ final class AnnotationCanvas: NSView {
         transform.scale(by: scale)
         transform.concat()
 
+        // Aperçu fidèle du « joli fond » : mêmes coins arrondis et même ombre
+        // que l'export (les annotations près des bords sont rognées pareil).
+        if beautifyPreview {
+            let pad = max(64, min(image.size.width, image.size.height) * 0.09)
+            let radius = max(10, pad * 0.22)
+            let clipPath = NSBezierPath(
+                roundedRect: NSRect(origin: .zero, size: image.size),
+                xRadius: radius,
+                yRadius: radius
+            )
+            NSGraphicsContext.current?.saveGraphicsState()
+            let shadow = NSShadow()
+            shadow.shadowBlurRadius = 16
+            shadow.shadowOffset = NSSize(width: 0, height: -6)
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.4)
+            shadow.set()
+            NSColor.white.setFill()
+            clipPath.fill()
+            NSGraphicsContext.current?.restoreGraphicsState()
+            clipPath.addClip()
+        }
+
         image.draw(in: NSRect(origin: .zero, size: image.size))
         for shape in shapes {
             ShapeRenderer.draw(shape, pixelatedImage: pixelatedImage)
@@ -424,12 +446,23 @@ final class AnnotationCanvas: NSView {
         needsDisplay = true
     }
 
+    /// Sélection d'outil au clavier (1 à 9), défini par le contrôleur.
+    var onToolShortcut: ((Int) -> Void)?
+
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Échap
             window?.performClose(nil)
-        } else {
-            super.keyDown(with: event)
+            return
         }
+        if event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+           let chars = event.charactersIgnoringModifiers,
+           chars.count == 1,
+           let digit = Int(chars),
+           digit >= 1, digit <= AnnotationTool.allCases.count {
+            onToolShortcut?(digit - 1)
+            return
+        }
+        super.keyDown(with: event)
     }
 
     func addText(_ text: String, at point: CGPoint) {
@@ -453,10 +486,17 @@ final class EditorWindow: NSWindow {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.contains(.command),
-           !event.modifierFlags.contains(.shift),
            !event.modifierFlags.contains(.option),
            !event.modifierFlags.contains(.control) {
-            switch event.charactersIgnoringModifiers?.lowercased() {
+            let key = event.charactersIgnoringModifiers?.lowercased()
+            if event.modifierFlags.contains(.shift) {
+                if key == "z" {
+                    annotator?.redo()
+                    return true
+                }
+                return super.performKeyEquivalent(with: event)
+            }
+            switch key {
             case "z":
                 annotator?.undo()
                 return true
@@ -487,9 +527,12 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
     private let canvas: AnnotationCanvas
     private var beautify = false
     private var colorObservation: NSKeyValueObservation?
+    private var toolsControl: NSSegmentedControl?
 
-    // Historique d'annulation : instantanés (image + annotations).
-    private var undoStack: [(NSImage, [AnnotationShape], Int)] = []
+    // Historique : instantanés (image + annotations + compteur de badges).
+    private typealias Snapshot = (NSImage, [AnnotationShape], Int)
+    private var undoStack: [Snapshot] = []
+    private var redoStack: [Snapshot] = []
 
     static func open(fileURL: URL) {
         guard let raw = NSImage(contentsOf: fileURL) else {
@@ -540,6 +583,12 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
         canvas.onWillMutate = { [weak self] in self?.pushUndoSnapshot() }
         canvas.onCrop = { [weak self] rect in self?.applyCrop(rect) }
         canvas.onRequestText = { [weak self] point in self?.promptForText(at: point) }
+        canvas.onToolShortcut = { [weak self] index in
+            guard let self, let tool = AnnotationTool(rawValue: index) else { return }
+            self.canvas.currentTool = tool
+            self.toolsControl?.selectedSegment = index
+        }
+        updateTitle()
     }
 
     private func show() {
@@ -572,6 +621,8 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
             action: #selector(toolChanged(_:))
         )
         tools.selectedSegment = 0
+        tools.toolTip = "Changer d'outil : touches 1 à 9"
+        toolsControl = tools
 
         // Rangée 2 : options et actions.
         let colorWell = NSColorWell()
@@ -672,13 +723,32 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
     }
 
     func undo() {
-        guard let (image, shapes, badgeCount) = undoStack.popLast() else {
+        guard let snapshot = undoStack.popLast() else {
             NSSound.beep()
             return
         }
-        canvas.image = image
-        canvas.shapes = shapes
-        canvas.badgeCounter = badgeCount
+        redoStack.append(currentSnapshot())
+        restore(snapshot)
+    }
+
+    func redo() {
+        guard let snapshot = redoStack.popLast() else {
+            NSSound.beep()
+            return
+        }
+        undoStack.append(currentSnapshot())
+        restore(snapshot)
+    }
+
+    private func currentSnapshot() -> Snapshot {
+        (canvas.image, canvas.shapes, canvas.badgeCounter)
+    }
+
+    private func restore(_ snapshot: Snapshot) {
+        canvas.image = snapshot.0
+        canvas.shapes = snapshot.1
+        canvas.badgeCounter = snapshot.2
+        updateTitle()
     }
 
     func copyImage() {
@@ -752,6 +822,7 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
             moved.end.y -= rect.minY
             return moved
         }
+        updateTitle()
     }
 
     private func promptForText(at point: CGPoint) {
@@ -770,9 +841,15 @@ final class AnnotatorWindowController: NSObject, NSWindowDelegate {
     }
 
     private func pushUndoSnapshot() {
-        undoStack.append((canvas.image, canvas.shapes, canvas.badgeCounter))
+        undoStack.append(currentSnapshot())
+        redoStack.removeAll() // toute nouvelle action invalide le rétablir
         if undoStack.count > 40 {
             undoStack.removeFirst()
         }
+    }
+
+    private func updateTitle() {
+        let size = canvas.image.size
+        window.title = "\(fileURL.lastPathComponent)  (\(Int(size.width)) × \(Int(size.height)) px)"
     }
 }

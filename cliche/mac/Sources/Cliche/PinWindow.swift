@@ -48,7 +48,32 @@ final class PinWindowController: NSObject {
         let view = PinImageView(image: image)
         view.onClose = { [weak self] in self?.close() }
         view.onResize = { [weak self] factor in self?.resize(by: factor) }
+        view.onCopy = { [weak self] in self?.copyImage() }
+        view.onActualSize = { [weak self] in self?.actualSize() }
         window.contentView = view
+    }
+
+    private func copyImage() {
+        guard let view = window.contentView as? PinImageView else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([view.pinnedImage])
+        Toast.shared.show("Copié dans le presse-papiers")
+    }
+
+    /// Revient à la taille naturelle (pixels Retina / 2), bornée à l'écran.
+    private func actualSize() {
+        let frame = window.frame
+        var w = imageSize.width / 2
+        if let screen = NSScreen.main {
+            w = min(w, screen.visibleFrame.width * 0.95)
+        }
+        let h = w * imageSize.height / max(imageSize.width, 1)
+        window.setFrame(
+            NSRect(x: frame.minX, y: frame.maxY - h, width: w, height: h),
+            display: true,
+            animate: true
+        )
     }
 
     private func show() {
@@ -91,11 +116,16 @@ private final class PinImageView: NSView {
     private let image: NSImage
     var onClose: (() -> Void)?
     var onResize: ((CGFloat) -> Void)?
+    var onCopy: (() -> Void)?
+    var onActualSize: (() -> Void)?
+
+    var pinnedImage: NSImage { image }
 
     init(image: NSImage) {
         self.image = image
         super.init(frame: .zero)
         wantsLayer = true
+        toolTip = "Molette : taille, double-clic : fermer, clic droit : menu"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non implémenté") }
@@ -125,4 +155,23 @@ private final class PinImageView: NSView {
         let factor = 1 + min(max(delta * 0.004, -0.15), 0.15)
         onResize?(factor)
     }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu()
+        let copyItem = NSMenuItem(title: "Copier", action: #selector(menuCopy), keyEquivalent: "")
+        copyItem.target = self
+        menu.addItem(copyItem)
+        let sizeItem = NSMenuItem(title: "Taille réelle", action: #selector(menuActualSize), keyEquivalent: "")
+        sizeItem.target = self
+        menu.addItem(sizeItem)
+        menu.addItem(.separator())
+        let closeItem = NSMenuItem(title: "Fermer l'épingle", action: #selector(menuClose), keyEquivalent: "")
+        closeItem.target = self
+        menu.addItem(closeItem)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func menuCopy() { onCopy?() }
+    @objc private func menuActualSize() { onActualSize?() }
+    @objc private func menuClose() { onClose?() }
 }
