@@ -246,11 +246,25 @@ final class BarsView: NSView {
 final class WeekView: NSView {
     struct Day {
         var label: String
+        var date: Date
         var total: TimeInterval
         var stacks: [(duration: TimeInterval, color: NSColor)]
         var isSelected: Bool
     }
     var days: [Day] = [] { didSet { needsDisplay = true } }
+    var onSelectDay: ((Date) -> Void)?
+
+    override func mouseDown(with event: NSEvent) {
+        guard !days.isEmpty else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let index = Int(point.x / (bounds.width / CGFloat(days.count)))
+        guard days.indices.contains(index) else { return }
+        onSelectDay?(days[index].date)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         guard !days.isEmpty else { return }
@@ -315,6 +329,29 @@ final class FlippedStackView: NSStackView {
     override var isFlipped: Bool { true }
 }
 
+/// Fenêtre du rapport : flèches gauche/droite pour changer de jour,
+/// ⌘W pour fermer (pas de barre de menus dans une app d'arrière-plan).
+final class ReportKeyWindow: NSWindow {
+    weak var controller: ReportWindowController?
+
+    override func keyDown(with event: NSEvent) {
+        switch event.keyCode {
+        case 123: controller?.shiftDay(-1) // flèche gauche
+        case 124: controller?.shiftDay(1)  // flèche droite
+        default: super.keyDown(with: event)
+        }
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "w" {
+            performClose(nil)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 // MARK: - Fenêtre de rapport
 
 final class ReportWindowController: NSObject, NSWindowDelegate {
@@ -322,6 +359,7 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
 
     private var window: NSWindow?
     private var displayedDay = Date()
+    private var refreshTimer: Timer?
 
     private let dateLabel = NSTextField(labelWithString: "")
     private let statsLabel = NSTextField(labelWithString: "")
@@ -341,19 +379,35 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         reload()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+
+        // La vue "aujourd'hui" se met à jour toute seule pendant qu'elle
+        // est ouverte (sans toucher au bilan IA déjà généré).
+        refreshTimer?.invalidate()
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self, let window = self.window, window.isVisible else { return }
+            if Calendar.current.isDate(self.displayedDay, inSameDayAs: Date()) {
+                self.reload(keepSummary: true)
+            }
+        }
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
-        reload()
+        reload(keepSummary: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 
     private func buildWindow() {
-        let window = NSWindow(
+        let window = ReportKeyWindow(
             contentRect: NSRect(x: 0, y: 0, width: 920, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
+        window.controller = self
         window.title = "Sablier"
         window.minSize = NSSize(width: 780, height: 560)
         window.isReleasedWhenClosed = false
@@ -455,7 +509,7 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
 
     // MARK: chargement
 
-    private func reload() {
+    private func reload(keepSummary: Bool = false) {
         let report = DayReport.build(day: displayedDay)
 
         let formatter = DateFormatter()
@@ -472,6 +526,12 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             }
             if !Sampler.accessibilityGranted {
                 stats += "    (titres de fenêtres désactivés : autorisation Accessibilité absente)"
+            }
+            // Trop de temps non classé = il manque des règles.
+            if let other = report.categories.first(where: { $0.name == Categorizer.defaultCategory }),
+               other.duration > report.total * 0.25 {
+                stats += "    Astuce : \(formatDuration(other.duration)) en « Autre », "
+                    + "ajoute des règles (bouton Règles)"
             }
             statsLabel.stringValue = stats
         } else {
@@ -490,7 +550,9 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         }
 
         reloadWeek(reference: report.day, rules: report.rules)
-        summaryLabel.stringValue = ""
+        if !keepSummary {
+            summaryLabel.stringValue = ""
+        }
     }
 
     private func reloadWeek(reference: Date, rules: [CategoryRule]) {
@@ -515,12 +577,17 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             }
             days.append(WeekView.Day(
                 label: formatter.string(from: day),
+                date: start,
                 total: byCategory.values.reduce(0, +),
                 stacks: stacks,
                 isSelected: offset == 0
             ))
         }
         weekView.days = days
+        weekView.onSelectDay = { [weak self] date in
+            self?.displayedDay = date
+            self?.reload()
+        }
     }
 
     // MARK: actions
@@ -528,7 +595,7 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
     @objc private func previousDay() { shiftDay(-1) }
     @objc private func nextDay() { shiftDay(1) }
 
-    private func shiftDay(_ delta: Int) {
+    func shiftDay(_ delta: Int) {
         if let day = Calendar.current.date(byAdding: .day, value: delta, to: displayedDay) {
             displayedDay = min(day, Date())
             reload()

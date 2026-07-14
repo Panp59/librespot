@@ -11,7 +11,10 @@ Pas de chronomètre à lancer ni de projet à déclarer : c'est justement fait p
 - **Catégories par règles** : un simple fichier texte, une règle par ligne (`motif => Catégorie`). Le motif est cherché dans l'app et le titre de fenêtre. Les règles sont rétroactives : vous les affinez, tout l'historique se reclasse.
 - **Rapport** : frise chronologique colorée de la journée (survolez pour le détail), totaux par catégorie, top des applications, statistiques de fragmentation, vue semaine, export CSV.
 - **Bilan IA optionnel** : un bouton envoie les totaux du jour au LLM local (Ollama) qui rédige un court bilan en français. Jamais bloquant, jamais dans le cloud.
-- **Barre de menus** : le temps actif du jour, visible en permanence.
+- **Barre de menus** : le temps actif du jour, visible en permanence, et le bilan du jour en tête de menu (« Aujourd'hui : 4 h 12, surtout Dev »).
+- **Pauses** : suspendre le suivi jusqu'à nouvel ordre, pendant 1 heure, ou jusqu'à demain (pour ce qui ne regarde que vous). L'historique complet s'efface en un clic, sur confirmation.
+
+Dans le rapport : flèches gauche/droite pour changer de jour, clic sur une colonne de la vue semaine pour ouvrir ce jour, la vue « aujourd'hui » se rafraîchit toute seule pendant qu'elle est ouverte.
 
 ## Installation
 

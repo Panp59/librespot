@@ -13,6 +13,8 @@ final class Sampler {
     private(set) var isPaused = false {
         didSet { if isPaused { closeCurrentSession(at: Date()) } }
     }
+    /// Reprise automatique programmée (pause d'une heure, jusqu'à demain...).
+    private(set) var resumeDate: Date?
 
     private var timer: Timer?
     private var current: (id: Int64, session: WorkSession)?
@@ -34,8 +36,9 @@ final class Sampler {
         )
     }
 
-    func setPaused(_ paused: Bool) {
+    func setPaused(_ paused: Bool, until date: Date? = nil) {
         isPaused = paused
+        resumeDate = paused ? date : nil
     }
 
     /// À appeler avant de quitter : ferme proprement la session en cours.
@@ -47,8 +50,15 @@ final class Sampler {
     @objc private func sessionResigned() { closeCurrentSession(at: Date()) }
 
     private func tick() {
-        guard !isPaused else { return }
         let now = Date()
+        if isPaused {
+            if let resumeDate, now >= resumeDate {
+                setPaused(false)
+                Toast.shared.show("Suivi repris")
+            } else {
+                return
+            }
+        }
 
         // Inactivité : on regarde le temps écoulé depuis le dernier événement
         // d'entrée, tous types confondus.

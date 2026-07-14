@@ -121,6 +121,12 @@ final class Store {
     func totalDuration(from: Date, to: Date) -> TimeInterval {
         sessions(from: from, to: to).reduce(0) { $0 + $1.duration }
     }
+
+    /// Efface tout l'historique. Irréversible, sur confirmation uniquement.
+    func deleteAll() {
+        exec("DELETE FROM sessions;")
+        exec("VACUUM;")
+    }
 }
 
 /// Formatage des durées : "2 h 05", "38 min", "45 s".

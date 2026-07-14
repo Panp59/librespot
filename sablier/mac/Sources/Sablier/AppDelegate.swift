@@ -15,6 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.updateStatusTitle()
         }
         updateStatusTitle()
+
+        if !UserDefaults.standard.bool(forKey: "didFirstRun") {
+            UserDefaults.standard.set(true, forKey: "didFirstRun")
+            Toast.shared.show(
+                "Sablier enregistre en tâche de fond. Reviens ce soir voir ton rapport !",
+                duration: 4
+            )
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -39,6 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         menu.autoenablesItems = false
 
+        // Bilan du jour, mis à jour à chaque ouverture du menu.
+        let summaryItem = NSMenuItem(title: "Aujourd'hui : rien encore", action: nil, keyEquivalent: "")
+        summaryItem.isEnabled = false
+        summaryItem.tag = 10
+        menu.addItem(summaryItem)
+        menu.addItem(.separator())
+
         let reportItem = NSMenuItem(
             title: "Ouvrir le rapport",
             action: #selector(openReport),
@@ -56,6 +71,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pauseItem.target = self
         pauseItem.tag = 1
         menu.addItem(pauseItem)
+
+        let pauseHourItem = NSMenuItem(
+            title: "Suspendre pendant 1 heure",
+            action: #selector(pauseOneHour),
+            keyEquivalent: ""
+        )
+        pauseHourItem.target = self
+        pauseHourItem.tag = 4
+        menu.addItem(pauseHourItem)
+
+        let pauseTomorrowItem = NSMenuItem(
+            title: "Suspendre jusqu'à demain",
+            action: #selector(pauseUntilTomorrow),
+            keyEquivalent: ""
+        )
+        pauseTomorrowItem.target = self
+        pauseTomorrowItem.tag = 5
+        menu.addItem(pauseTomorrowItem)
 
         let axItem = NSMenuItem(
             title: "Activer les titres de fenêtres (Accessibilité)",
@@ -91,6 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         dataItem.target = self
         menu.addItem(dataItem)
+
+        let clearItem = NSMenuItem(
+            title: "Effacer tout l'historique...",
+            action: #selector(clearHistory),
+            keyEquivalent: ""
+        )
+        clearItem.target = self
+        menu.addItem(clearItem)
         menu.addItem(.separator())
 
         let aboutItem = NSMenuItem(title: "À propos de Sablier", action: #selector(showAbout), keyEquivalent: "")
@@ -109,8 +150,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         for item in menu.items {
             switch item.tag {
+            case 10:
+                item.title = todaySummaryLine()
             case 1:
+                item.title = sampler.isPaused ? "Reprendre le suivi" : "Suspendre le suivi"
                 item.state = sampler.isPaused ? .on : .off
+            case 4, 5:
+                item.isEnabled = !sampler.isPaused
             case 2:
                 item.state = Sampler.accessibilityGranted ? .on : .off
                 item.isEnabled = !Sampler.accessibilityGranted
@@ -121,6 +167,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         updateStatusTitle()
+    }
+
+    /// "Aujourd'hui : 4 h 12, surtout Dev (1 h 50)".
+    private func todaySummaryLine() -> String {
+        let start = Calendar.current.startOfDay(for: Date())
+        let sessions = Store.shared.sessions(from: start, to: Date())
+        let total = sessions.reduce(0) { $0 + $1.duration }
+        guard total > 60 else { return "Aujourd'hui : rien encore" }
+        let rules = Categorizer.loadRules()
+        var byCategory: [String: TimeInterval] = [:]
+        for session in sessions {
+            byCategory[Categorizer.category(for: session, rules: rules), default: 0]
+                += session.duration
+        }
+        var line = "Aujourd'hui : \(formatDuration(total))"
+        if let top = byCategory.max(by: { $0.value < $1.value }) {
+            line += ", surtout \(top.key) (\(formatDuration(top.value)))"
+        }
+        return line
     }
 
     private func updateStatusTitle() {
@@ -146,6 +211,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ? "Suivi suspendu (rien n'est enregistré)"
             : "Suivi repris")
         updateStatusTitle()
+    }
+
+    @objc private func pauseOneHour() {
+        sampler.setPaused(true, until: Date().addingTimeInterval(3600))
+        Toast.shared.show("Suivi suspendu pendant 1 heure")
+        updateStatusTitle()
+    }
+
+    @objc private func pauseUntilTomorrow() {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(
+            byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())
+        )!
+        sampler.setPaused(true, until: tomorrow)
+        Toast.shared.show("Suivi suspendu jusqu'à demain")
+        updateStatusTitle()
+    }
+
+    @objc private func clearHistory() {
+        let alert = NSAlert()
+        alert.messageText = "Effacer tout l'historique ?"
+        alert.informativeText = "Toutes les données de suivi seront définitivement "
+            + "supprimées de ce Mac. Cette action est irréversible."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Tout effacer")
+        alert.addButton(withTitle: "Annuler")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            Store.shared.deleteAll()
+            Toast.shared.show("Historique effacé")
+            updateStatusTitle()
+        }
     }
 
     @objc private func enableAccessibility() {
