@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         MenuBarConcealer.shared.install()
+        DesktopIcons.refreshCache()
+        Appearance.refreshCache()
 
         // Ctrl+Option+D : bascule du mode Démo, de n'importe où.
         HotKeyCenter.shared.register(
@@ -26,8 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Synchrone : les restaurations asynchrones seraient abandonnées
+        // à la mort du process (bureau masqué et DND actifs pour toujours).
         if DemoMode.shared.isActive {
-            DemoMode.shared.deactivate()
+            DemoMode.shared.deactivate(synchronously: true)
         }
         KeepAwake.shared.set(false)
     }
@@ -116,6 +120,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === statusItem?.menu {
+            // Rafraîchit les caches en arrière-plan : si l'état a changé
+            // hors de Régie, la prochaine ouverture sera juste.
+            DesktopIcons.refreshCache()
+            Appearance.refreshCache()
+        }
         for item in menu.items {
             switch item.tag {
             case 1:
@@ -123,10 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.title = DemoMode.shared.isActive
                     ? "Mode Démo (actif)" : "Mode Démo"
             case 2: item.state = MenuBarConcealer.shared.isCollapsed ? .on : .off
-            case 3: item.state = DesktopIcons.isHidden ? .on : .off
+            case 3: item.state = DesktopIcons.cachedHidden ? .on : .off
             case 4: item.state = FocusMode.isOn ? .on : .off
             case 5: item.state = KeepAwake.shared.isOn ? .on : .off
-            case 6: item.state = Appearance.isDark ? .on : .off
+            case 6: item.state = Appearance.cachedDark ? .on : .off
             case 7: item.state = SMAppService.mainApp.status == .enabled ? .on : .off
             case 21: item.state = DemoMode.Settings.hidesMenuBarIcons ? .on : .off
             case 22: item.state = DemoMode.Settings.cleansDesktop ? .on : .off
@@ -149,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleDesktop() {
-        let hide = !DesktopIcons.isHidden
+        let hide = !DesktopIcons.cachedHidden
         DesktopIcons.setHidden(hide) {
             Toast.shared.show(hide
                 ? "Fichiers du bureau masqués"
@@ -177,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleDark() {
-        Appearance.setDark(!Appearance.isDark)
+        Appearance.setDark(!Appearance.cachedDark)
     }
 
     @objc private func toggleDemoIcons() {

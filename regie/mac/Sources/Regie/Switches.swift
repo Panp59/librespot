@@ -2,8 +2,8 @@ import AppKit
 
 /// Petit utilitaire d'exécution de commandes système.
 enum Shell {
-    /// Exécution synchrone courte (lectures d'état). À réserver aux
-    /// commandes instantanées comme `defaults read`.
+    /// Exécution synchrone courte. Lire la sortie AVANT d'attendre la fin :
+    /// l'inverse se bloque dès que la commande remplit le tampon du pipe.
     @discardableResult
     static func run(_ path: String, _ arguments: [String]) -> String {
         let process = Process()
@@ -14,11 +14,11 @@ enum Shell {
         process.standardError = Pipe()
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return ""
         }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
@@ -47,18 +47,36 @@ enum Shell {
 }
 
 /// Les fichiers du bureau : Finder sait ne plus les dessiner.
+/// L'état est mis en cache pour que l'ouverture du menu ne paie jamais un
+/// `defaults read` synchrone (fork/exec sur le main thread = menu qui accroche).
 enum DesktopIcons {
-    static var isHidden: Bool {
-        let value = Shell.run("/usr/bin/defaults", ["read", "com.apple.finder", "CreateDesktop"])
-        return value == "0" || value.lowercased() == "false"
+    private(set) static var cachedHidden = false
+
+    static func refreshCache() {
+        DispatchQueue.global(qos: .utility).async {
+            let value = Shell.run("/usr/bin/defaults", ["read", "com.apple.finder", "CreateDesktop"])
+            let hidden = value == "0" || value.lowercased() == "false"
+            DispatchQueue.main.async { cachedHidden = hidden }
+        }
     }
 
     static func setHidden(_ hidden: Bool, completion: (() -> Void)? = nil) {
+        cachedHidden = hidden
         Shell.runAsync("/usr/bin/defaults", [
             "write", "com.apple.finder", "CreateDesktop", "-bool", hidden ? "false" : "true",
         ]) { _ in
             Shell.runAsync("/usr/bin/killall", ["Finder"]) { _ in completion?() }
         }
+    }
+
+    /// Variante synchrone, uniquement pour la sortie de l'app : les blocs
+    /// asynchrones seraient abandonnés à la mort du process.
+    static func setHiddenSync(_ hidden: Bool) {
+        cachedHidden = hidden
+        Shell.run("/usr/bin/defaults", [
+            "write", "com.apple.finder", "CreateDesktop", "-bool", hidden ? "false" : "true",
+        ])
+        Shell.run("/usr/bin/killall", ["Finder"])
     }
 }
 
@@ -88,14 +106,21 @@ final class KeepAwake {
     }
 }
 
-/// Apparence sombre/claire, via System Events (autorisation Automation
-/// demandée par macOS au premier usage).
+/// Apparence sombre/claire via System Events (autorisation Automation
+/// demandée par macOS au premier usage). On passe par osascript en process
+/// séparé : NSAppleScript n'est pas thread-safe et bloquerait le main thread.
 enum Appearance {
-    static var isDark: Bool {
-        Shell.run("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyle"]) == "Dark"
+    private(set) static var cachedDark = false
+
+    static func refreshCache() {
+        DispatchQueue.global(qos: .utility).async {
+            let dark = Shell.run("/usr/bin/defaults", ["read", "-g", "AppleInterfaceStyle"]) == "Dark"
+            DispatchQueue.main.async { cachedDark = dark }
+        }
     }
 
     static func setDark(_ dark: Bool) {
+        cachedDark = dark
         let source = """
         tell application "System Events"
             tell appearance preferences
@@ -103,15 +128,10 @@ enum Appearance {
             end tell
         end tell
         """
-        DispatchQueue.global(qos: .userInitiated).async {
-            var error: NSDictionary?
-            NSAppleScript(source: source)?.executeAndReturnError(&error)
-            if error != nil {
-                DispatchQueue.main.async {
-                    Toast.shared.show(
-                        "Autorise Régie dans Confidentialité > Automatisation"
-                    )
-                }
+        Shell.runAsync("/usr/bin/osascript", ["-e", source]) { status in
+            if status != 0 {
+                Toast.shared.show("Autorise Régie dans Confidentialité > Automatisation")
+                refreshCache()
             }
         }
     }
@@ -127,11 +147,6 @@ enum FocusMode {
 
     private(set) static var isOn = false
 
-    static var shortcutsConfigured: Bool {
-        let list = Shell.run("/usr/bin/shortcuts", ["list"])
-        return list.contains(onShortcut) && list.contains(offShortcut)
-    }
-
     static func set(_ on: Bool, completion: ((Bool) -> Void)? = nil) {
         let name = on ? onShortcut : offShortcut
         Shell.runAsync("/usr/bin/shortcuts", ["run", name]) { status in
@@ -142,6 +157,12 @@ enum FocusMode {
                 completion?(false)
             }
         }
+    }
+
+    /// Variante synchrone pour la sortie de l'app.
+    static func setSync(_ on: Bool) {
+        Shell.run("/usr/bin/shortcuts", ["run", on ? onShortcut : offShortcut])
+        isOn = on
     }
 
     /// Alerte pas à pas pour créer les deux raccourcis, avec ouverture

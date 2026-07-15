@@ -2,13 +2,23 @@ import AppKit
 
 /// Le bouton vedette : UN geste avant un partage d'écran, tout se met en
 /// place ; le même geste après, tout revient comme avant. Chaque composant
-/// mémorise l'état antérieur : si le bureau était déjà masqué, il le reste
-/// en sortant du mode Démo.
+/// n'est restauré que s'il a réellement été changé : si le bureau était
+/// déjà masqué avant la démo, il le reste après.
 final class DemoMode {
     static let shared = DemoMode()
 
     private(set) var isActive = false
-    private var restoreActions: [() -> Void] = []
+
+    /// Ce qui devra être défait, sous forme de données (pas de closures) :
+    /// à la sortie de l'app on doit pouvoir restaurer en SYNCHRONE, sinon
+    /// les commandes asynchrones sont abandonnées à la mort du process.
+    private enum RestoreAction {
+        case menuBar(collapsed: Bool)
+        case showDesktop
+        case sleepAgain
+        case focusOff
+    }
+    private var restoreActions: [RestoreAction] = []
 
     struct Settings {
         static var hidesMenuBarIcons: Bool {
@@ -40,26 +50,20 @@ final class DemoMode {
         if Settings.hidesMenuBarIcons {
             let wasCollapsed = MenuBarConcealer.shared.isCollapsed
             MenuBarConcealer.shared.setCollapsed(true)
-            restoreActions.append { MenuBarConcealer.shared.setCollapsed(wasCollapsed) }
+            restoreActions.append(.menuBar(collapsed: wasCollapsed))
         }
 
-        if Settings.cleansDesktop {
-            let wasHidden = DesktopIcons.isHidden
-            if !wasHidden {
-                DesktopIcons.setHidden(true)
-                restoreActions.append { DesktopIcons.setHidden(false) }
-            }
+        if Settings.cleansDesktop, !DesktopIcons.cachedHidden {
+            DesktopIcons.setHidden(true)
+            restoreActions.append(.showDesktop)
         }
 
-        if Settings.keepsAwake {
-            let wasOn = KeepAwake.shared.isOn
+        if Settings.keepsAwake, !KeepAwake.shared.isOn {
             KeepAwake.shared.set(true)
-            if !wasOn {
-                restoreActions.append { KeepAwake.shared.set(false) }
-            }
+            restoreActions.append(.sleepAgain)
         }
 
-        if Settings.enablesFocus {
+        if Settings.enablesFocus, !FocusMode.isOn {
             FocusMode.set(true) { ok in
                 if !ok {
                     Toast.shared.show(
@@ -67,20 +71,40 @@ final class DemoMode {
                     )
                 }
             }
-            restoreActions.append { FocusMode.set(false) }
+            restoreActions.append(.focusOff)
         }
 
         isActive = true
         Toast.shared.show("Mode Démo activé. Bonne démo !")
     }
 
-    func deactivate() {
+    /// `synchronously: true` uniquement à la sortie de l'app.
+    func deactivate(synchronously: Bool = false) {
         guard isActive else { return }
-        for restore in restoreActions.reversed() {
-            restore()
+        for action in restoreActions.reversed() {
+            switch action {
+            case .menuBar(let collapsed):
+                MenuBarConcealer.shared.setCollapsed(collapsed)
+            case .showDesktop:
+                if synchronously {
+                    DesktopIcons.setHiddenSync(false)
+                } else {
+                    DesktopIcons.setHidden(false)
+                }
+            case .sleepAgain:
+                KeepAwake.shared.set(false)
+            case .focusOff:
+                if synchronously {
+                    FocusMode.setSync(false)
+                } else {
+                    FocusMode.set(false)
+                }
+            }
         }
         restoreActions = []
         isActive = false
-        Toast.shared.show("Mode Démo désactivé, tout est revenu")
+        if !synchronously {
+            Toast.shared.show("Mode Démo désactivé, tout est revenu")
+        }
     }
 }
