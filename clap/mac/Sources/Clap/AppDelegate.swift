@@ -525,7 +525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 extension AppDelegate: ControlServerDelegate {
     func controlStart(
         target: String, match: String?, webcam: Bool,
-        completion: @escaping (Result<String, String>) -> Void
+        completion: @escaping (Result<String, ControlError>) -> Void
     ) {
         guard !screenRecorder.isRecording, !isStarting else {
             completion(.failure("un enregistrement est déjà en cours"))
@@ -541,7 +541,7 @@ extension AppDelegate: ControlServerDelegate {
                 completion(.success(session.directory.path))
             case .failure(let error):
                 self?.suppressMic = false
-                completion(.failure(error.localizedDescription))
+                completion(.failure(ControlError(error.localizedDescription)))
             }
         }
 
@@ -578,7 +578,7 @@ extension AppDelegate: ControlServerDelegate {
         }
     }
 
-    func controlStop(completion: @escaping (Result<String, String>) -> Void) {
+    func controlStop(completion: @escaping (Result<String, ControlError>) -> Void) {
         guard screenRecorder.isRecording, let session = currentSession else {
             completion(.failure("aucun enregistrement en cours"))
             return

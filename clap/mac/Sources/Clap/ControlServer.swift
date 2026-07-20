@@ -10,12 +10,21 @@ import Network
 ///   GET  /status          -> {"recording":bool,"session":path?,"elapsed":s}
 ///   POST /start  body JSON {"target":"screen"|"window","match":"OPTIMa","webcam":false}
 ///   POST /stop            -> {"ok":true,"session":path}
+/// Erreur de contrôle porteuse d'un message. ExpressibleByStringLiteral
+/// pour écrire simplement `.failure("...")` tout en restant un vrai Error
+/// (String ne conforme pas à Error).
+struct ControlError: Error, ExpressibleByStringLiteral {
+    let message: String
+    init(_ message: String) { self.message = message }
+    init(stringLiteral value: String) { self.message = value }
+}
+
 protocol ControlServerDelegate: AnyObject {
     func controlStart(
         target: String, match: String?, webcam: Bool,
-        completion: @escaping (Result<String, String>) -> Void
+        completion: @escaping (Result<String, ControlError>) -> Void
     )
-    func controlStop(completion: @escaping (Result<String, String>) -> Void)
+    func controlStop(completion: @escaping (Result<String, ControlError>) -> Void)
     func controlStatus() -> [String: Any]
 }
 
@@ -163,12 +172,12 @@ final class ControlServer {
         }
     }
 
-    private func respondResult(_ connection: NWConnection, _ result: Result<String, String>) {
+    private func respondResult(_ connection: NWConnection, _ result: Result<String, ControlError>) {
         switch result {
         case .success(let session):
             respond(connection, json: ["ok": true, "session": session])
-        case .failure(let message):
-            respond(connection, status: "409 Conflict", json: ["ok": false, "error": message])
+        case .failure(let error):
+            respond(connection, status: "409 Conflict", json: ["ok": false, "error": error.message])
         }
     }
 

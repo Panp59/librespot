@@ -30,7 +30,9 @@ def _resample_int16(pcm: bytes, src_sr: int, dst_sr: int):
     """Rééchantillonnage linéaire simple (aucune dépendance lourde)."""
     import numpy as np
 
-    audio = np.frombuffer(pcm, dtype="<i2")
+    # Tronque à un nombre pair d'octets : frombuffer exige un multiple de la
+    # taille d'un échantillon (2 octets).
+    audio = np.frombuffer(pcm[: len(pcm) & ~1], dtype="<i2")
     if src_sr == dst_sr or audio.size == 0:
         return audio.astype("<i2")
     duration = audio.size / src_sr
@@ -48,14 +50,19 @@ def assemble(plan: dict, out_path: Path) -> dict:
     sr = config.SAMPLE_RATE
     backend = plan.get("backend")
     voice = plan.get("voice")
-    lines = sorted(plan.get("lines", []), key=lambda item: float(item.get("start", 0)))
+    # On garde l'index d'origine (avant tri) pour que le rapport reste
+    # rattachable aux répliques telles que fournies par l'appelant.
+    lines = sorted(
+        enumerate(plan.get("lines", [])),
+        key=lambda item: float(item[1].get("start", 0)),
+    )
 
     clips = []  # (start_sample, np.int16)
     cursor = 0  # premier échantillon libre
     report_lines = []
     pushed_any = False
 
-    for index, line in enumerate(lines):
+    for index, line in lines:
         text = (line.get("text") or "").strip()
         if not text:
             continue
