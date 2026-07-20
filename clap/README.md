@@ -88,6 +88,12 @@ enregistrement » permet de rééditer/ré-exporter sans réenregistrer.
 > clair dans `session.json`, ne tape pas de mot de passe pendant une
 > capture avec cette option.
 
+## Démos automatiques (pilotage par le CLI)
+
+Clap peut être piloté par un CLI (Claude Code) pour tourner des démos tout seul : storyboard, navigateur, enregistrement, voix off. Active « Contrôle par le CLI (démo auto) » dans le menu, et vois `DEMO-AUTO.md` à la racine du dépôt pour la recette complète.
+
+En bref : une petite API HTTP en loopback (jeton d'accès dans `~/Library/Application Support/Clap/control.json`) expose `start` / `stop` / `status`. Le compagnon Souffleur génère la voix off française en local ; Clap la détecte (case « Voix off ») et la met sur la piste finale à la place du micro. Le wrapper `clap-ctl.sh` enveloppe l'API pour curl.
+
 ## Limites connues
 
 - L'export est calculé sur CPU : compter environ la durée de la vidéo pour

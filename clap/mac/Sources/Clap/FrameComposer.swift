@@ -93,6 +93,9 @@ struct ExportSettings {
     var cursorScale: CGFloat = 2.0
     var background: BackgroundStyle = .gradient(BackgroundPreset.all[0])
     var includeMic = true
+    /// Voix off Souffleur. Quand elle est active et disponible, elle remplace
+    /// le micro sur la piste audio finale.
+    var includeNarration = true
 
     var showWebcam = true
     var webcamCorner: WebcamCorner = .bottomRight

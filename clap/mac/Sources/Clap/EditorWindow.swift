@@ -46,6 +46,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
     private let zoomSlider = NSSlider(value: 1.9, minValue: 1.0, maxValue: 3.0, target: nil, action: nil)
     private let cursorSlider = NSSlider(value: 2.0, minValue: 1.0, maxValue: 3.5, target: nil, action: nil)
     private let micCheckbox = NSButton(checkboxWithTitle: "Son du micro", target: nil, action: nil)
+    private let narrationCheckbox = NSButton(checkboxWithTitle: "Voix off (Souffleur)", target: nil, action: nil)
     private let webcamCheckbox = NSButton(checkboxWithTitle: "Webcam", target: nil, action: nil)
     private let webcamCornerPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let webcamShapePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -78,6 +79,9 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
         settings.includeMic = data.hasMic
         settings.showWebcam = data.hasWebcam
         settings.showKeystrokes = !data.keys.isEmpty
+        // Voix off disponible si le drapeau OU le fichier est là (Souffleur
+        // peut l'avoir déposé après l'enregistrement).
+        settings.includeNarration = data.hasNarration || session.hasNarrationFile
         playhead = data.trimStart
     }
 
@@ -162,6 +166,12 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
 
         micCheckbox.state = data.hasMic ? .on : .off
         micCheckbox.isEnabled = data.hasMic
+        let hasNarration = data.hasNarration || session.hasNarrationFile
+        narrationCheckbox.state = hasNarration ? .on : .off
+        narrationCheckbox.isEnabled = hasNarration
+        narrationCheckbox.toolTip = hasNarration
+            ? "La voix off Souffleur remplace le micro sur la piste finale."
+            : "Aucune voix off trouvée. Génère narration.wav avec Souffleur."
         webcamCheckbox.state = data.hasWebcam ? .on : .off
         webcamCheckbox.isEnabled = data.hasWebcam
         webcamCornerPopup.isEnabled = data.hasWebcam
@@ -185,6 +195,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
             [label("Intensité du zoom :"), zoomSlider],
             [label("Taille du curseur :"), cursorSlider],
             [NSGridCell.emptyContentView, micCheckbox],
+            [NSGridCell.emptyContentView, narrationCheckbox],
             [NSGridCell.emptyContentView, webcamCheckbox],
             [label("Position webcam :"), webcamCornerPopup],
             [label("Forme webcam :"), webcamShapePopup],
@@ -267,6 +278,7 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
             (zoomSlider, #selector(settingsChanged)),
             (cursorSlider, #selector(settingsChanged)),
             (micCheckbox, #selector(settingsChanged)),
+            (narrationCheckbox, #selector(settingsChanged)),
             (webcamCheckbox, #selector(settingsChanged)),
             (webcamCornerPopup, #selector(settingsChanged)),
             (webcamShapePopup, #selector(settingsChanged)),
@@ -571,6 +583,8 @@ final class EditorWindow: NSObject, TimelineViewDelegate, NSWindowDelegate {
         settings.maxZoom = CGFloat(zoomSlider.doubleValue)
         settings.cursorScale = CGFloat(cursorSlider.doubleValue)
         settings.includeMic = micCheckbox.state == .on && data.hasMic
+        settings.includeNarration = narrationCheckbox.state == .on
+            && (data.hasNarration || session.hasNarrationFile)
         settings.showWebcam = webcamCheckbox.state == .on && data.hasWebcam
         settings.webcamCorner = WebcamCorner(rawValue: webcamCornerPopup.indexOfSelectedItem) ?? .bottomRight
         settings.webcamShape = WebcamShape(rawValue: webcamShapePopup.indexOfSelectedItem) ?? .circle

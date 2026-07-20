@@ -19,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var webcamEnabled = false
     private var keysEnabled = false
     private var isStarting = false
+    /// Coupe le micro pour l'enregistrement en cours (démos pilotées par le
+    /// CLI : la voix off Souffleur remplace la vraie voix).
+    private var suppressMic = false
+
+    private let controlServer = ControlServer()
+    private var controlItem: NSMenuItem!
 
     private var elapsedTimer: Timer?
     private var recordingStartDate: Date?
@@ -39,6 +45,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Déclenche la demande d'autorisation Accessibilité (clics, touches).
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
+
+        controlServer.delegate = self
+        if UserDefaults.standard.bool(forKey: "controlEnabled") {
+            try? controlServer.start()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -90,6 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         keysItem.state = .off
         menu.addItem(keysItem)
+        menu.addItem(.separator())
+
+        controlItem = NSMenuItem(
+            title: "Contrôle par le CLI (démo auto)",
+            action: #selector(toggleControl), keyEquivalent: ""
+        )
+        controlItem.state = controlServer.isRunning ? .on : .off
+        menu.addItem(controlItem)
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(
@@ -195,8 +214,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
     }
 
-    private func beginRecording(target: ScreenRecorder.Target, area: CaptureArea) {
-        guard !screenRecorder.isRecording, !isStarting else { return }
+    static var busyError: Error {
+        NSError(domain: "Clap", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "Un enregistrement est déjà en cours.",
+        ])
+    }
+
+    /// `countdownSeconds` à 0 démarre sans compte à rebours (pilotage CLI).
+    /// `completion` est appelée quand la capture a réellement démarré (ou
+    /// échoué), avec la session créée.
+    private func beginRecording(
+        target: ScreenRecorder.Target,
+        area: CaptureArea,
+        countdownSeconds: Int = 3,
+        completion: ((Result<RecordingSession, Error>) -> Void)? = nil
+    ) {
+        guard !screenRecorder.isRecording, !isStarting else {
+            completion?(.failure(Self.busyError))
+            return
+        }
         isStarting = true
 
         let session: RecordingSession
@@ -204,44 +240,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             session = try RecordingSession.create()
         } catch {
             isStarting = false
+            completion?(.failure(error))
             showAlert(title: "Impossible de créer le dossier d'enregistrement",
                       message: error.localizedDescription)
             return
         }
 
-        let proceed = { [weak self] in
+        // Démarre réellement la capture (webcam + aperçu AVANT l'écran : la
+        // fenêtre d'aperçu doit exister quand le filtre de capture est
+        // construit pour en être exclue).
+        let launch = { [weak self] in
             guard let self else { return }
-            self.installCountdownEscapeMonitors()
-            self.countdown.run(seconds: 3) {
-                self.removeCountdownEscapeMonitors()
-
-                // Webcam + aperçu AVANT la capture d'écran : la fenêtre
-                // d'aperçu doit exister au moment où le filtre de capture
-                // est construit pour en être exclue.
-                if self.webcamEnabled {
-                    do {
-                        try self.webcamRecorder.start(to: session.webcamURL)
-                        self.webcamPreview.show(session: self.webcamRecorder.captureSession)
-                    } catch {
-                        NSLog("Clap: webcam indisponible: \(error)")
-                    }
+            if self.webcamEnabled {
+                do {
+                    try self.webcamRecorder.start(to: session.webcamURL)
+                    self.webcamPreview.show(session: self.webcamRecorder.captureSession)
+                } catch {
+                    NSLog("Clap: webcam indisponible: \(error)")
                 }
+            }
 
-                // Petit délai pour que l'aperçu soit dans la liste des
-                // fenêtres au moment du filtrage.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // Petit délai pour que l'aperçu soit dans la liste des fenêtres
+            // au moment du filtrage.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 self.screenRecorder.start(to: session.rawVideoURL, target: target) { error in
                     self.isStarting = false
                     if let error {
                         self.webcamPreview.hide()
                         self.webcamRecorder.stop {}
+                        completion?(.failure(error))
                         self.showAlert(
                             title: "Impossible de démarrer la capture",
                             message: "Vérifie l'autorisation dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran.\n\nDétail : \(error.localizedDescription)"
                         )
                         return
                     }
-                    if self.micEnabled {
+                    if self.micEnabled, !self.suppressMic {
                         do { try self.micRecorder.start(to: session.micURL) }
                         catch { NSLog("Clap: micro indisponible: \(error)") }
                     }
@@ -257,13 +291,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.stopItem.isHidden = false
                     self.updateStatusIcon()
                     self.startElapsedTimer()
-                }
+                    completion?(.success(session))
                 }
             }
         }
 
+        let proceed = { [weak self] in
+            guard let self else { return }
+            if countdownSeconds <= 0 {
+                launch()
+                return
+            }
+            self.installCountdownEscapeMonitors()
+            self.countdown.run(seconds: countdownSeconds) {
+                self.removeCountdownEscapeMonitors()
+                launch()
+            }
+        }
+
         // Demande les autorisations micro/webcam avant le compte à rebours.
-        if micEnabled {
+        if micEnabled, !suppressMic {
             MicRecorder.requestPermission { [weak self] _ in
                 if self?.webcamEnabled == true {
                     WebcamRecorder.requestPermission { _ in proceed() }
@@ -279,7 +326,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func stopRecording() {
-        guard screenRecorder.isRecording, let session = currentSession else { return }
+        performStop(openEditor: true)
+    }
+
+    /// `openEditor` à false pendant une démo pilotée par le CLI : Claude
+    /// dépose ensuite la voix off, puis l'utilisateur ouvre l'éditeur.
+    /// `completion` est appelée à la fin de la sauvegarde.
+    private func performStop(openEditor: Bool, completion: (() -> Void)? = nil) {
+        guard screenRecorder.isRecording, let session = currentSession else {
+            completion?()
+            return
+        }
 
         let stopTime = CACurrentMediaTime()
         let tracker = mouseTracker
@@ -302,6 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let self else { return }
             self.screenRecorder.stop { error in
                 self.currentSession = nil
+                self.suppressMic = false
                 self.startItem.isHidden = false
                 self.windowSubmenuItem.isHidden = false
                 self.stopItem.isHidden = true
@@ -309,6 +367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
                 if let error {
                     self.showAlert(title: "L'enregistrement a échoué", message: error.localizedDescription)
+                    completion?()
                     return
                 }
                 guard let videoStart = self.screenRecorder.firstFrameTime else {
@@ -316,6 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         title: "Enregistrement vide",
                         message: "Aucune image n'a été capturée. Vérifie l'autorisation d'enregistrement de l'écran."
                     )
+                    completion?()
                     return
                 }
 
@@ -345,11 +405,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 } catch {
                     self.showAlert(title: "Impossible de sauvegarder la session",
                                    message: error.localizedDescription)
+                    completion?()
                     return
                 }
 
-                self.editorWindow = EditorWindow(session: session, data: data)
-                self.editorWindow?.show()
+                if openEditor {
+                    self.editorWindow = EditorWindow(session: session, data: data)
+                    self.editorWindow?.show()
+                }
+                completion?()
             }
         }
     }
@@ -401,6 +465,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         keysItem.state = keysEnabled ? .on : .off
     }
 
+    @objc private func toggleControl() {
+        if controlServer.isRunning {
+            controlServer.stop()
+            controlItem.state = .off
+            UserDefaults.standard.set(false, forKey: "controlEnabled")
+        } else {
+            do {
+                try controlServer.start()
+                controlItem.state = .on
+                UserDefaults.standard.set(true, forKey: "controlEnabled")
+                showAlert(
+                    title: "Contrôle par le CLI activé",
+                    message: "Clap écoute sur http://127.0.0.1:\(ControlServer.port). "
+                        + "Le jeton d'accès est dans :\n\(ControlServer.infoFileURL.path)\n\n"
+                        + "Claude Code lit ce fichier pour piloter l'enregistrement des démos."
+                )
+            } catch {
+                showAlert(title: "Impossible d'activer le contrôle",
+                          message: error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Divers
 
     @objc private func openLatest() {
@@ -430,5 +517,103 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.messageText = title
         alert.informativeText = message
         alert.runModal()
+    }
+}
+
+// MARK: - Pilotage par le CLI
+
+extension AppDelegate: ControlServerDelegate {
+    func controlStart(
+        target: String, match: String?, webcam: Bool,
+        completion: @escaping (Result<String, String>) -> Void
+    ) {
+        guard !screenRecorder.isRecording, !isStarting else {
+            completion(.failure("un enregistrement est déjà en cours"))
+            return
+        }
+        webcamEnabled = webcam
+        webcamItem.state = webcam ? .on : .off
+        suppressMic = true // démo automatisée : la voix off remplace le micro
+
+        let done: (Result<RecordingSession, Error>) -> Void = { [weak self] result in
+            switch result {
+            case .success(let session):
+                completion(.success(session.directory.path))
+            case .failure(let error):
+                self?.suppressMic = false
+                completion(.failure(error.localizedDescription))
+            }
+        }
+
+        if target == "window" {
+            guard let match, !match.isEmpty else {
+                suppressMic = false
+                completion(.failure("la cible « window » exige un champ « match »"))
+                return
+            }
+            resolveWindow(matching: match) { [weak self] window in
+                guard let self else { return }
+                guard let window else {
+                    self.suppressMic = false
+                    completion(.failure("aucune fenêtre ne correspond à « \(match) »"))
+                    return
+                }
+                let scale = NSScreen.main?.backingScaleFactor ?? 2
+                self.beginRecording(
+                    target: .window(window),
+                    area: .window(windowID: window.windowID, scale: scale),
+                    countdownSeconds: 0, completion: done
+                )
+            }
+        } else {
+            guard let screen = NSScreen.main else {
+                suppressMic = false
+                completion(.failure("aucun écran principal détecté"))
+                return
+            }
+            beginRecording(
+                target: .mainDisplay, area: .display(screen: screen),
+                countdownSeconds: 0, completion: done
+            )
+        }
+    }
+
+    func controlStop(completion: @escaping (Result<String, String>) -> Void) {
+        guard screenRecorder.isRecording, let session = currentSession else {
+            completion(.failure("aucun enregistrement en cours"))
+            return
+        }
+        let path = session.directory.path
+        performStop(openEditor: false) {
+            completion(.success(path))
+        }
+    }
+
+    func controlStatus() -> [String: Any] {
+        var status: [String: Any] = ["recording": screenRecorder.isRecording]
+        if let session = currentSession {
+            status["session"] = session.directory.path
+        }
+        if let start = recordingStartDate {
+            status["elapsed"] = Int(Date().timeIntervalSince(start))
+        }
+        return status
+    }
+
+    private func resolveWindow(matching match: String, completion: @escaping (SCWindow?) -> Void) {
+        SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, _ in
+            DispatchQueue.main.async {
+                let needle = match.lowercased()
+                let window = (content?.windows ?? []).first { window in
+                    guard let app = window.owningApplication else { return false }
+                    guard window.isOnScreen,
+                          window.frame.width >= 200, window.frame.height >= 150,
+                          app.bundleIdentifier != Bundle.main.bundleIdentifier else { return false }
+                    let haystack = "\(app.applicationName) \(window.title ?? "")".lowercased()
+                    return haystack.contains(needle)
+                }
+                completion(window)
+            }
+        }
     }
 }

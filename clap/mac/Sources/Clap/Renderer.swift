@@ -144,19 +144,33 @@ final class Renderer {
         var audioInput: AVAssetWriterInput?
         var audioShift = CMTime.zero
 
-        if settings.includeMic, data.hasMic,
-           FileManager.default.fileExists(atPath: session.micURL.path) {
-            let micAsset = AVURLAsset(url: session.micURL)
-            if let micTrack = micAsset.tracks(withMediaType: .audio).first {
-                let micReader = try AVAssetReader(asset: micAsset)
+        // Source audio : la voix off Souffleur est prioritaire sur le micro
+        // (une démo automatisée n'a pas de vraie voix). La narration est
+        // calée sur la première image vidéo, donc décalage nul.
+        var audioSourceURL: URL?
+        var audioSourceOffset = 0.0
+        if settings.includeNarration,
+           FileManager.default.fileExists(atPath: session.narrationURL.path) {
+            audioSourceURL = session.narrationURL
+            audioSourceOffset = 0
+        } else if settings.includeMic, data.hasMic,
+                  FileManager.default.fileExists(atPath: session.micURL.path) {
+            audioSourceURL = session.micURL
+            audioSourceOffset = data.micOffset
+        }
+
+        if let audioSourceURL {
+            let audioAsset = AVURLAsset(url: audioSourceURL)
+            if let micTrack = audioAsset.tracks(withMediaType: .audio).first {
+                let micReader = try AVAssetReader(asset: audioAsset)
                 let micOutput = AVAssetReaderTrackOutput(
                     track: micTrack,
                     outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM]
                 )
                 micReader.add(micOutput)
-                // Position, dans le fichier micro, de l'instant trimStart :
-                // le micro démarre micOffset secondes avant la vidéo.
-                let skip = data.micOffset + trimStart
+                // Position, dans le fichier audio, de l'instant trimStart :
+                // la source démarre audioSourceOffset secondes avant la vidéo.
+                let skip = audioSourceOffset + trimStart
                 if skip > 0 {
                     micReader.timeRange = CMTimeRange(
                         start: CMTime(seconds: skip, preferredTimescale: 44_100),

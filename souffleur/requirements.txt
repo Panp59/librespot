@@ -1,0 +1,6 @@
+# Souffleur : synthèse vocale locale.
+# Piper (TTS neuronal) est optionnel : si l'installation echoue sur ton Mac,
+# Souffleur bascule automatiquement sur la voix macOS « say ».
+piper-tts
+huggingface_hub
+numpy

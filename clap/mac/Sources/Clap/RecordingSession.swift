@@ -19,6 +19,11 @@ struct RecordingData: Codable {
     /// Même convention que micOffset, pour la piste webcam.
     var webcamOffset: Double = 0
 
+    /// Voix off générée par Souffleur (narration.wav), calée sur le début de
+    /// la vidéo. Peut être ajoutée APRÈS l'enregistrement : l'éditeur vérifie
+    /// aussi la présence du fichier, ce drapeau n'est qu'un indice.
+    var hasNarration = false
+
     var points: [MousePoint] = []
     var clicks: [MouseClick] = []
     var keys: [KeyEvent] = []
@@ -31,7 +36,7 @@ struct RecordingData: Codable {
 
     enum CodingKeys: String, CodingKey {
         case version, pixelWidth, pixelHeight, duration
-        case hasMic, micOffset, hasWebcam, webcamOffset
+        case hasMic, micOffset, hasWebcam, webcamOffset, hasNarration
         case points, clicks, keys, zoomSegments, trimStart, trimEnd
     }
 
@@ -52,6 +57,7 @@ struct RecordingData: Codable {
         micOffset = try c.decodeIfPresent(Double.self, forKey: .micOffset) ?? 0
         hasWebcam = try c.decodeIfPresent(Bool.self, forKey: .hasWebcam) ?? false
         webcamOffset = try c.decodeIfPresent(Double.self, forKey: .webcamOffset) ?? 0
+        hasNarration = try c.decodeIfPresent(Bool.self, forKey: .hasNarration) ?? false
         points = try c.decodeIfPresent([MousePoint].self, forKey: .points) ?? []
         clicks = try c.decodeIfPresent([MouseClick].self, forKey: .clicks) ?? []
         keys = try c.decodeIfPresent([KeyEvent].self, forKey: .keys) ?? []
@@ -74,7 +80,14 @@ struct RecordingSession {
     var rawVideoURL: URL { directory.appendingPathComponent("raw.mov") }
     var micURL: URL { directory.appendingPathComponent("mic.m4a") }
     var webcamURL: URL { directory.appendingPathComponent("webcam.mov") }
+    var narrationURL: URL { directory.appendingPathComponent("narration.wav") }
     var dataURL: URL { directory.appendingPathComponent("session.json") }
+
+    /// Vrai si une voix off Souffleur est présente (fichier réel sur disque,
+    /// même déposé après l'enregistrement).
+    var hasNarrationFile: Bool {
+        FileManager.default.fileExists(atPath: narrationURL.path)
+    }
 
     static var recordingsRoot: URL {
         FileManager.default
