@@ -286,6 +286,11 @@ final class Sampler {
         Toast.shared.show("Autorisation demandée. Coche Sablier dans la liste, puis c'est bon.")
     }
 
+    /// Vrai si ce bundle est un navigateur dont on sait lire l'onglet actif.
+    static func isBrowser(_ bundleID: String) -> Bool {
+        browserScripts.keys.contains(bundleID)
+    }
+
     /// Domaine de l'onglet actif d'un navigateur (ex. "mail.google.com"),
     /// ou "" si l'app n'est pas un navigateur connu, si l'autorisation
     /// Automatisation manque, ou s'il n'y a pas d'onglet ouvert. Le préfixe

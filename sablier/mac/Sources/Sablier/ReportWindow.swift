@@ -548,6 +548,18 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             if !Sampler.accessibilityGranted {
                 stats += "    (titres de fenêtres désactivés : autorisation Accessibilité absente)"
             }
+            // Temps navigateur sans domaine capturé : sans l'autorisation
+            // Automatisation, les sites restent invisibles (et ce jour, s'il
+            // est passé, ne pourra jamais les afficher : le domaine n'a pas
+            // été enregistré à l'époque).
+            let browserNoHost = report.sessions
+                .filter { Sampler.isBrowser($0.bundle) && $0.host.isEmpty }
+                .reduce(0) { $0 + $1.duration }
+            if browserNoHost >= 120 {
+                stats += "    Sites non détectés (\(formatDuration(browserNoHost))) : "
+                    + "Menu > Autoriser la lecture du navigateur, puis navigue "
+                    + "(les jours passés resteront sans site)"
+            }
             // Trop de temps non classé : la section « À catégoriser » plus
             // bas propose les gros postes à ranger en un clic.
             if let other = report.categories.first(where: { $0.name == Categorizer.defaultCategory }),
