@@ -87,11 +87,16 @@ final class Store {
     }
 
     /// Sessions recoupant l'intervalle [from, to], rognées à cet intervalle.
+    /// Les états « absent » (écran verrouillé, économiseur) sont exclus, y
+    /// compris rétroactivement pour les données enregistrées avant le correctif.
     func sessions(from: Date, to: Date) -> [WorkSession] {
         var statement: OpaquePointer?
+        let awayList = Sampler.awayBundleIDs
+            .map { "'\($0)'" }
+            .joined(separator: ",")
         let sql = """
         SELECT id, start, end, bundle, app, title FROM sessions
-        WHERE end > ? AND start < ? ORDER BY start;
+        WHERE end > ? AND start < ? AND bundle NOT IN (\(awayList)) ORDER BY start;
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(statement) }

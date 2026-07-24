@@ -10,11 +10,26 @@ final class Sampler {
     static let tickInterval: TimeInterval = 5
     static let idleThreshold: TimeInterval = 180 // 3 min sans clavier/souris = absent
 
+    /// Processus qui ne sont pas des apps mais des états « absent » : écran
+    /// verrouillé, écran de connexion, économiseur. Quand ils sont au premier
+    /// plan, l'utilisateur n'est pas là — on n'enregistre rien.
+    static let awayBundleIDs: Set<String> = [
+        "com.apple.loginwindow",
+        "com.apple.ScreenSaver.Engine",
+        "com.apple.screensaver",
+    ]
+
     private(set) var isPaused = false {
         didSet { if isPaused { closeCurrentSession(at: Date()) } }
     }
     /// Reprise automatique programmée (pause d'une heure, jusqu'à demain...).
     private(set) var resumeDate: Date?
+
+    /// Vrai quand l'écran est verrouillé, en veille ou sous économiseur :
+    /// l'utilisateur est absent, aucun échantillon n'est pris. Détecté par les
+    /// notifications système (verrouillage, veille écran, économiseur) plutôt
+    /// que par l'inactivité clavier/souris, qui n'est pas fiable écran verrouillé.
+    private var isAway = false
 
     private var timer: Timer?
     private var current: (id: Int64, session: WorkSession)?
@@ -34,6 +49,37 @@ final class Sampler {
             self, selector: #selector(sessionResigned),
             name: NSWorkspace.sessionDidResignActiveNotification, object: nil
         )
+        // Veille de l'écran (le Mac reste éveillé mais l'écran s'éteint) :
+        // willSleep ne se déclenche pas dans ce cas, il faut l'observer à part.
+        center.addObserver(
+            self, selector: #selector(beginAway),
+            name: NSWorkspace.screensDidSleepNotification, object: nil
+        )
+        center.addObserver(
+            self, selector: #selector(endAway),
+            name: NSWorkspace.screensDidWakeNotification, object: nil
+        )
+
+        // Verrouillage de l'écran et économiseur : seules notifications
+        // distribuées (non documentées mais stables de longue date) qui
+        // signalent que l'utilisateur s'est absenté sans éteindre l'écran.
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(
+            self, selector: #selector(beginAway),
+            name: NSNotification.Name("com.apple.screenIsLocked"), object: nil
+        )
+        distributed.addObserver(
+            self, selector: #selector(endAway),
+            name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil
+        )
+        distributed.addObserver(
+            self, selector: #selector(beginAway),
+            name: NSNotification.Name("com.apple.screensaver.didstart"), object: nil
+        )
+        distributed.addObserver(
+            self, selector: #selector(endAway),
+            name: NSNotification.Name("com.apple.screensaver.didstop"), object: nil
+        )
     }
 
     func setPaused(_ paused: Bool, until date: Date? = nil) {
@@ -49,6 +95,16 @@ final class Sampler {
     @objc private func systemWillSleep() { closeCurrentSession(at: Date()) }
     @objc private func sessionResigned() { closeCurrentSession(at: Date()) }
 
+    /// Écran verrouillé / en veille / économiseur : on ferme la session en
+    /// cours et on suspend l'échantillonnage jusqu'au retour.
+    @objc private func beginAway() {
+        isAway = true
+        closeCurrentSession(at: Date())
+    }
+
+    /// Retour de l'utilisateur : l'échantillonnage reprend au prochain tick.
+    @objc private func endAway() { isAway = false }
+
     private func tick() {
         let now = Date()
         if isPaused {
@@ -59,6 +115,9 @@ final class Sampler {
                 return
             }
         }
+
+        // Absent (écran verrouillé, en veille, économiseur) : rien à enregistrer.
+        if isAway { return }
 
         // Inactivité : on regarde le temps écoulé depuis le dernier événement
         // d'entrée, tous types confondus.
@@ -71,6 +130,12 @@ final class Sampler {
         }
 
         guard let frontmost = NSWorkspace.shared.frontmostApplication else {
+            closeCurrentSession(at: now)
+            return
+        }
+        // Filet de sécurité si une notification de verrouillage a été manquée :
+        // loginwindow ou l'économiseur au premier plan = utilisateur absent.
+        if let id = frontmost.bundleIdentifier, Self.awayBundleIDs.contains(id) {
             closeCurrentSession(at: now)
             return
         }
