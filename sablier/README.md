@@ -34,7 +34,7 @@ Sablier fonctionne **sans aucune autorisation** : app au premier plan et temps d
 
 En option, l'autorisation **Accessibilité** ajoute les titres de fenêtres : le rapport distingue alors « devis Dupont.pdf » de « notice OPTIMa.pdf » au lieu d'un simple « Preview ». Menu > Activer les titres de fenêtres, puis ajoutez Sablier dans Réglages Système > Confidentialité et sécurité > Accessibilité.
 
-En option également, l'autorisation **Automatisation** laisse Sablier lire le domaine de l'onglet actif du navigateur (pour séparer les sites web entre eux). macOS la demande automatiquement au premier passage sur chaque navigateur ; acceptez, et le navigateur apparaît dans Réglages Système > Confidentialité et sécurité > Automatisation. Refusée, Sablier retombe simplement sur le titre de fenêtre. Seul le domaine est lu, jamais l'URL, et rien n'est enregistré d'autre.
+En option également, l'autorisation **Automatisation** laisse Sablier lire le domaine de l'onglet actif du navigateur (pour séparer les sites web entre eux). macOS la demande au premier passage sur chaque navigateur ; acceptez, et le navigateur apparaît dans Réglages Système > Confidentialité et sécurité > Automatisation. Si la demande ne se déclenche pas toute seule, utilisez Menu > Autoriser la lecture du navigateur (navigateur ouvert), qui la force. Refusée, Sablier retombe simplement sur le titre de fenêtre. Seul le domaine est lu, jamais l'URL, et rien n'est enregistré d'autre.
 
 Après chaque recompilation (`make_app.sh`), la signature ad hoc change : retirez puis réajoutez Sablier dans la liste Accessibilité si les titres disparaissent.
 
@@ -72,3 +72,4 @@ Tout est dans `~/Library/Application Support/Sablier/` : une base SQLite (`sabli
 - **Pas de temps affiché dans la barre de menus** : normal tant que la journée n'a pas d'activité enregistrée, ou si le suivi est en pause.
 - **Tout finit dans « Autre »** : ajoutez des règles, c'est le signe qu'il en manque.
 - **Les titres de fenêtres restent vides** : autorisation Accessibilité absente ou à renouveler après recompilation, voir plus haut.
+- **Les sites web ne se distinguent pas (tout est « Web »)** : autorisation Automatisation absente. Ouvre le navigateur puis Menu > Autoriser la lecture du navigateur pour forcer la demande. À renouveler après recompilation (la signature ad hoc change).

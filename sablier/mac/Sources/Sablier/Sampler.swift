@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import CoreServices
 
 /// Le capteur : toutes les 5 secondes, note l'app au premier plan (et le
 /// titre de sa fenêtre si l'autorisation Accessibilité est accordée).
@@ -244,13 +245,59 @@ final class Sampler {
         "company.thebrowser.Browser": "tell application \"Arc\" to get URL of active tab of front window",
     ]
 
+    /// Navigateurs déjà passés par la demande d'autorisation ce lancement.
+    private static var promptedBrowsers = Set<String>()
+
+    /// Vérifie (et demande si besoin) l'autorisation d'automatiser une app.
+    /// `askUserIfNeeded: true` fait apparaître la fenêtre de consentement TCC
+    /// la première fois. Le simple envoi via NSAppleScript ne la déclenche
+    /// pas toujours : c'est l'API dédiée qui la force de façon fiable.
+    @discardableResult
+    static func determineAutomationPermission(bundleID: String, askUserIfNeeded: Bool) -> OSStatus {
+        guard let data = bundleID.data(using: .utf8) else {
+            return OSStatus(errAEEventNotPermitted)
+        }
+        var target = AEAddressDesc()
+        let created = data.withUnsafeBytes { raw -> OSStatus in
+            AECreateDesc(typeApplicationBundleID, raw.baseAddress, data.count, &target)
+        }
+        guard created == noErr else { return created }
+        defer { AEDisposeDesc(&target) }
+        return AEDeterminePermissionToAutomateTarget(
+            &target, typeWildCard, typeWildCard, askUserIfNeeded
+        )
+    }
+
+    /// Demande explicitement l'autorisation pour tous les navigateurs ouverts
+    /// (appelé depuis le menu). L'app cible doit tourner pour que macOS
+    /// affiche la demande.
+    static func requestBrowserAutomation() {
+        let running = NSWorkspace.shared.runningApplications
+            .compactMap { $0.bundleIdentifier }
+            .filter { browserScripts.keys.contains($0) }
+        guard !running.isEmpty else {
+            Toast.shared.show("Ouvre ton navigateur puis réessaie")
+            return
+        }
+        for id in running {
+            promptedBrowsers.insert(id)
+            determineAutomationPermission(bundleID: id, askUserIfNeeded: true)
+        }
+        Toast.shared.show("Autorisation demandée. Coche Sablier dans la liste, puis c'est bon.")
+    }
+
     /// Domaine de l'onglet actif d'un navigateur (ex. "mail.google.com"),
     /// ou "" si l'app n'est pas un navigateur connu, si l'autorisation
     /// Automatisation manque, ou s'il n'y a pas d'onglet ouvert. Le préfixe
     /// "www." est retiré pour que les règles n'aient pas à le prévoir.
     static func browserHost(for bundleID: String) -> String {
-        guard let source = browserScripts[bundleID],
-              let script = NSAppleScript(source: source) else { return "" }
+        guard let source = browserScripts[bundleID] else { return "" }
+        // Première rencontre de ce navigateur : force la demande TCC.
+        if !promptedBrowsers.contains(bundleID) {
+            promptedBrowsers.insert(bundleID)
+            determineAutomationPermission(bundleID: bundleID, askUserIfNeeded: true)
+        }
+        guard let script = NSAppleScript(source: source) else { return "" }
         var error: NSDictionary?
         let output = script.executeAndReturnError(&error)
         guard error == nil, let urlString = output.stringValue,

@@ -99,6 +99,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         axItem.tag = 2
         menu.addItem(axItem)
 
+        let browserItem = NSMenuItem(
+            title: "Autoriser la lecture du navigateur (Automatisation)",
+            action: #selector(requestBrowserAutomation),
+            keyEquivalent: ""
+        )
+        browserItem.target = self
+        menu.addItem(browserItem)
+
         let loginItem = NSMenuItem(
             title: "Lancer au démarrage",
             action: #selector(toggleLaunchAtLogin),
@@ -243,6 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Toast.shared.show("Historique effacé")
             updateStatusTitle()
         }
+    }
+
+    @objc private func requestBrowserAutomation() {
+        Sampler.requestBrowserAutomation()
     }
 
     @objc private func enableAccessibility() {
