@@ -13,7 +13,7 @@ final class Sampler {
 
     /// Processus qui ne sont pas des apps mais des états « absent » : écran
     /// verrouillé, écran de connexion, économiseur. Quand ils sont au premier
-    /// plan, l'utilisateur n'est pas là — on n'enregistre rien.
+    /// plan, l'utilisateur n'est pas là, on n'enregistre rien.
     static let awayBundleIDs: Set<String> = [
         "com.apple.loginwindow",
         "com.apple.ScreenSaver.Engine",
