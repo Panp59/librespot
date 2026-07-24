@@ -166,8 +166,15 @@ final class Sampler {
             title = ""
         }
 
+        // Navigateur : le domaine de l'onglet actif distingue deux sites
+        // ouverts dans la même app (mail vs Prospex, tous deux « Brave »).
+        // Demande l'autorisation Automatisation, une fois par navigateur ;
+        // sans elle, host reste vide et on retombe sur le titre de fenêtre.
+        let host = Self.browserHost(for: bundle)
+
         if var open = current {
-            if open.session.bundle == bundle && open.session.title == title {
+            if open.session.bundle == bundle && open.session.title == title
+                && open.session.host == host {
                 // Même contexte : on prolonge.
                 open.session.end = now
                 current = open
@@ -178,7 +185,9 @@ final class Sampler {
         }
 
         // Nouveau contexte : on ouvre une session.
-        var session = WorkSession(start: now, end: now, bundle: bundle, app: app, title: title)
+        var session = WorkSession(
+            start: now, end: now, bundle: bundle, app: app, title: title, host: host
+        )
         let id = Store.shared.insert(session)
         session.id = id
         current = (id, session)
@@ -222,6 +231,31 @@ final class Sampler {
             window, kAXTitleAttribute as CFString, &titleValue
         ) == .success else { return nil }
         return titleValue as? String
+    }
+
+    /// Navigateurs dont on sait lire l'URL de l'onglet actif par Apple Event.
+    /// La famille Chromium partage la même syntaxe ; Safari a la sienne.
+    static let browserScripts: [String: String] = [
+        "com.apple.Safari": "tell application \"Safari\" to get URL of front document",
+        "com.google.Chrome": "tell application \"Google Chrome\" to get URL of active tab of front window",
+        "com.brave.Browser": "tell application \"Brave Browser\" to get URL of active tab of front window",
+        "com.microsoft.edgemac": "tell application \"Microsoft Edge\" to get URL of active tab of front window",
+        "com.vivaldi.Vivaldi": "tell application \"Vivaldi\" to get URL of active tab of front window",
+        "company.thebrowser.Browser": "tell application \"Arc\" to get URL of active tab of front window",
+    ]
+
+    /// Domaine de l'onglet actif d'un navigateur (ex. "mail.google.com"),
+    /// ou "" si l'app n'est pas un navigateur connu, si l'autorisation
+    /// Automatisation manque, ou s'il n'y a pas d'onglet ouvert. Le préfixe
+    /// "www." est retiré pour que les règles n'aient pas à le prévoir.
+    static func browserHost(for bundleID: String) -> String {
+        guard let source = browserScripts[bundleID],
+              let script = NSAppleScript(source: source) else { return "" }
+        var error: NSDictionary?
+        let output = script.executeAndReturnError(&error)
+        guard error == nil, let urlString = output.stringValue,
+              let host = URL(string: urlString)?.host else { return "" }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
 
     /// L'application propriétaire de la fenêtre sous le pointeur.

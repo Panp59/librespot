@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 
-/// Une plage d'activité continue : même app, même fenêtre.
+/// Une plage d'activité continue : même app, même fenêtre, même site.
 struct WorkSession {
     var id: Int64 = 0
     var start: Date
@@ -9,8 +9,16 @@ struct WorkSession {
     var bundle: String
     var app: String
     var title: String
+    /// Domaine de l'onglet actif pour les navigateurs (ex. "mail.google.com"),
+    /// vide pour les autres apps. C'est lui qui permet de distinguer deux
+    /// sites web ouverts dans le même navigateur.
+    var host: String = ""
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
+
+    /// Nom affiché : le site pour une session de navigateur, sinon l'app.
+    /// Sans ça, tout le web s'effondrerait sur une seule ligne "Brave Browser".
+    var displayName: String { host.isEmpty ? app : host }
 }
 
 /// Persistance SQLite, tout en local dans Application Support.
@@ -44,10 +52,30 @@ final class Store {
             end REAL NOT NULL,
             bundle TEXT NOT NULL,
             app TEXT NOT NULL,
-            title TEXT NOT NULL DEFAULT ''
+            title TEXT NOT NULL DEFAULT '',
+            host TEXT NOT NULL DEFAULT ''
         );
         """)
         exec("CREATE INDEX IF NOT EXISTS idx_sessions_start ON sessions(start);")
+        // Migration des bases créées avant l'ajout du domaine : on ajoute la
+        // colonne si elle manque (ALTER échoue sinon, d'où le test préalable).
+        if !columnExists("host", in: "sessions") {
+            exec("ALTER TABLE sessions ADD COLUMN host TEXT NOT NULL DEFAULT '';")
+        }
+    }
+
+    /// Vrai si la colonne existe déjà dans la table (via PRAGMA table_info).
+    private func columnExists(_ column: String, in table: String) -> Bool {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(\(table));", -1, &statement, nil) == SQLITE_OK
+        else { return false }
+        defer { sqlite3_finalize(statement) }
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if let name = sqlite3_column_text(statement, 1), String(cString: name) == column {
+                return true
+            }
+        }
+        return false
     }
 
     private func exec(_ sql: String) {
@@ -63,7 +91,7 @@ final class Store {
     /// Insère une session et retourne son identifiant.
     func insert(_ session: WorkSession) -> Int64 {
         var statement: OpaquePointer?
-        let sql = "INSERT INTO sessions(start, end, bundle, app, title) VALUES(?,?,?,?,?);"
+        let sql = "INSERT INTO sessions(start, end, bundle, app, title, host) VALUES(?,?,?,?,?,?);"
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return 0 }
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_double(statement, 1, session.start.timeIntervalSince1970)
@@ -71,6 +99,7 @@ final class Store {
         sqlite3_bind_text(statement, 3, session.bundle, -1, transient)
         sqlite3_bind_text(statement, 4, session.app, -1, transient)
         sqlite3_bind_text(statement, 5, session.title, -1, transient)
+        sqlite3_bind_text(statement, 6, session.host, -1, transient)
         guard sqlite3_step(statement) == SQLITE_DONE else { return 0 }
         return sqlite3_last_insert_rowid(db)
     }
@@ -95,7 +124,7 @@ final class Store {
             .map { "'\($0)'" }
             .joined(separator: ",")
         let sql = """
-        SELECT id, start, end, bundle, app, title FROM sessions
+        SELECT id, start, end, bundle, app, title, host FROM sessions
         WHERE end > ? AND start < ? AND bundle NOT IN (\(awayList)) ORDER BY start;
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
@@ -110,13 +139,15 @@ final class Store {
             let bundle = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
             let app = sqlite3_column_text(statement, 4).map { String(cString: $0) } ?? ""
             let title = sqlite3_column_text(statement, 5).map { String(cString: $0) } ?? ""
+            let host = sqlite3_column_text(statement, 6).map { String(cString: $0) } ?? ""
             result.append(WorkSession(
                 id: sqlite3_column_int64(statement, 0),
                 start: max(start, from),
                 end: min(end, to),
                 bundle: bundle,
                 app: app,
-                title: title
+                title: title,
+                host: host
             ))
         }
         return result

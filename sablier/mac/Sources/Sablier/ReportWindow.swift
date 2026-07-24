@@ -28,7 +28,9 @@ struct DayReport {
         for session in report.sessions {
             let category = Categorizer.category(for: session, rules: report.rules)
             byCategory[category, default: 0] += session.duration
-            byApp[session.app, default: 0] += session.duration
+            // Par site pour le web, par app sinon : sépare mail et Prospex
+            // au lieu de tout empiler sous « Brave Browser ».
+            byApp[session.displayName, default: 0] += session.duration
         }
         report.categories = byCategory.sorted { $0.value > $1.value }
             .map { (name: $0.key, duration: $0.value) }
@@ -170,7 +172,7 @@ final class TimelineView: NSView {
         formatter.dateFormat = "HH:mm"
         let category = Categorizer.category(for: session, rules: rules)
         var text = "\(formatter.string(from: session.start)) à "
-            + "\(formatter.string(from: session.end))  \(session.app)"
+            + "\(formatter.string(from: session.end))  \(session.displayName)"
         if !session.title.isEmpty {
             text += "  «\u{202F}\(session.title)\u{202F}»"
         }
@@ -458,7 +460,7 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             hoverLabel,
             sectionTitle("Par catégorie"),
             categoryBars,
-            sectionTitle("Top applications"),
+            sectionTitle("Top apps et sites"),
             appBars,
             sectionTitle("La semaine"),
             weekView,
@@ -626,13 +628,14 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
                 .replacingOccurrences(of: "\"", with: "\"\"")
             return "\"\(flat)\""
         }
-        var csv = "debut;fin;duree_s;application;titre;categorie\n"
+        var csv = "debut;fin;duree_s;application;site;titre;categorie\n"
         for session in report.sessions {
             let category = Categorizer.category(for: session, rules: report.rules)
             csv += "\(formatter.string(from: session.start));"
                 + "\(formatter.string(from: session.end));"
                 + "\(Int(session.duration));"
-                + "\(field(session.app));\(field(session.title));\(field(category))\n"
+                + "\(field(session.app));\(field(session.host));"
+                + "\(field(session.title));\(field(category))\n"
         }
 
         let dayFormatter = DateFormatter()

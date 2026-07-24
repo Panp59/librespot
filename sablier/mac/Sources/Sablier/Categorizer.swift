@@ -22,11 +22,23 @@ enum Categorizer {
     # Règles de catégorisation Sablier
     # Format : motif => Catégorie
     # Le motif est cherché (sans distinction de casse) dans l'identifiant
-    # du bundle, le nom de l'app et le titre de la fenêtre.
+    # du bundle, le nom de l'app, le DOMAINE du site (navigateurs) et le
+    # titre de la fenêtre.
     # La PREMIÈRE règle qui correspond gagne : mettez les plus précises en haut.
     # Modifiez, enregistrez, rouvrez le rapport : tout l'historique se reclasse.
 
-    # Titres de fenêtres (précis, donc en premier)
+    # Sites web (le domaine de l'onglet actif, tout tourne dans le navigateur).
+    # C'est ici que se distinguent deux sites ouverts dans le même navigateur.
+    prospex => Prospex
+    mail.google.com => Mails
+    outlook.office => Mails
+    calendar.google => Réunions
+    meet.google => Réunions
+    github.com => Dev
+    chatgpt.com => IA
+    claude.ai => IA
+
+    # Titres de fenêtres et documents (précis, donc en premier)
     gmao => OPTIMa
     optima => OPTIMa
     devis => Commercial
@@ -56,10 +68,14 @@ enum Categorizer {
     cursor => Dev
     github => Dev
 
-    # Navigation web
+    # Navigation web : repli quand le domaine n'a pas de règle plus précise
+    # au-dessus. Ces motifs matchent le nom de l'app, donc à garder EN BAS.
     safari => Web
     chrome => Web
+    brave => Web
+    edge => Web
     firefox => Web
+    vivaldi => Web
     arc => Web
 
     # Bureautique
@@ -108,7 +124,8 @@ enum Categorizer {
     }
 
     static func category(for session: WorkSession, rules: [CategoryRule]) -> String {
-        let haystack = "\(session.bundle) \(session.app) \(session.title)".lowercased()
+        let haystack = "\(session.bundle) \(session.app) \(session.host) \(session.title)"
+            .lowercased()
         for rule in rules where haystack.contains(rule.pattern) {
             return rule.category
         }

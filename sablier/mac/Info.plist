@@ -28,5 +28,7 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Sablier lit le domaine de l'onglet actif de votre navigateur pour distinguer les sites web (ex. mail de Prospex). Aucune URL n'est enregistrée, seulement le domaine, et rien ne quitte ce Mac.</string>
 </dict>
 </plist>

@@ -8,7 +8,8 @@ Pas de chronomètre à lancer ni de projet à déclarer : c'est justement fait p
 
 - **Capteur** : app au premier plan + titre de la fenêtre (optionnel), toutes les 5 secondes. Au-delà de 3 minutes sans clavier ni souris, le temps ne compte plus, et la session s'arrête rétroactivement au dernier geste.
 - **Multi-écrans** : macOS fait défiler la fenêtre sous la souris sans lui donner le focus. Quand le dernier geste est un défilement au-dessus d'une autre app que celle qui a le focus clavier, Sablier attribue le temps à l'app réellement lue, celle sous le pointeur.
-- **Catégories par règles** : un simple fichier texte, une règle par ligne (`motif => Catégorie`). Le motif est cherché dans l'app et le titre de fenêtre. Les règles sont rétroactives : vous les affinez, tout l'historique se reclasse.
+- **Catégories par règles** : un simple fichier texte, une règle par ligne (`motif => Catégorie`). Le motif est cherché dans l'app, le **domaine du site** (navigateurs) et le titre de fenêtre. Les règles sont rétroactives : vous les affinez, tout l'historique se reclasse.
+- **Distinction des apps web** : quand tout tourne dans le navigateur, Sablier lit le domaine de l'onglet actif (Safari, Chrome, Brave, Edge, Vivaldi, Arc) pour séparer par exemple le mail de Prospex, là où le seul nom « Brave Browser » ne le permettait pas. Seul le domaine est retenu, jamais l'URL complète.
 - **Rapport** : frise chronologique colorée de la journée (survolez pour le détail), totaux par catégorie, top des applications, statistiques de fragmentation, vue semaine, export CSV.
 - **Bilan IA optionnel** : un bouton envoie les totaux du jour au LLM local (Ollama) qui rédige un court bilan en français. Jamais bloquant, jamais dans le cloud.
 - **Barre de menus** : le temps actif du jour, visible en permanence, et le bilan du jour en tête de menu (« Aujourd'hui : 4 h 12, surtout Dev »).
@@ -33,6 +34,8 @@ Sablier fonctionne **sans aucune autorisation** : app au premier plan et temps d
 
 En option, l'autorisation **Accessibilité** ajoute les titres de fenêtres : le rapport distingue alors « devis Dupont.pdf » de « notice OPTIMa.pdf » au lieu d'un simple « Preview ». Menu > Activer les titres de fenêtres, puis ajoutez Sablier dans Réglages Système > Confidentialité et sécurité > Accessibilité.
 
+En option également, l'autorisation **Automatisation** laisse Sablier lire le domaine de l'onglet actif du navigateur (pour séparer les sites web entre eux). macOS la demande automatiquement au premier passage sur chaque navigateur ; acceptez, et le navigateur apparaît dans Réglages Système > Confidentialité et sécurité > Automatisation. Refusée, Sablier retombe simplement sur le titre de fenêtre. Seul le domaine est lu, jamais l'URL, et rien n'est enregistré d'autre.
+
 Après chaque recompilation (`make_app.sh`), la signature ad hoc change : retirez puis réajoutez Sablier dans la liste Accessibilité si les titres disparaissent.
 
 ## Les règles de catégories
@@ -46,13 +49,15 @@ Menu > Modifier les règles de catégories, ou éditez directement :
 Format, une règle par ligne, la première qui correspond gagne :
 
 ```
+prospex => Prospex
+mail.google.com => Mails
 gmao => OPTIMa
 teams => Réunions
 xcode => Dev
 safari => Web
 ```
 
-Mettez les motifs les plus précis (titres de documents) en haut, les plus généraux (noms d'apps) en bas. Enregistrez puis rouvrez le rapport : tout l'historique est reclassé.
+Mettez les motifs les plus précis (domaines de sites, titres de documents) en haut, les plus généraux (noms d'apps comme `safari`, `brave`) en bas — sinon `brave => Web` attraperait tout le web avant vos règles par domaine. Enregistrez puis rouvrez le rapport : tout l'historique est reclassé.
 
 ## Bilan IA (optionnel)
 
