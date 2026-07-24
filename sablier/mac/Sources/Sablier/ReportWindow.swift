@@ -421,9 +421,17 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         )
         window.controller = self
         window.title = "Sablier"
-        window.minSize = NSSize(width: 780, height: 560)
+        window.minSize = NSSize(width: 720, height: 480)
         window.isReleasedWhenClosed = false
         window.delegate = self
+        // Sécurité : ne jamais ouvrir plus grand que l'écran visible.
+        if let visible = NSScreen.main?.visibleFrame {
+            let size = NSSize(
+                width: min(920, visible.width * 0.9),
+                height: min(720, visible.height * 0.9)
+            )
+            window.setContentSize(size)
+        }
         window.center()
         self.window = window
 
@@ -452,6 +460,12 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
 
         statsLabel.font = .systemFont(ofSize: 12)
         statsLabel.textColor = .secondaryLabelColor
+        // Sans retour à la ligne ni contrainte de largeur, ce label d'une
+        // seule longue ligne imposait sa largeur intrinsèque à toute la
+        // fenêtre (gigantesque, non redimensionnable).
+        statsLabel.lineBreakMode = .byWordWrapping
+        statsLabel.maximumNumberOfLines = 0
+        statsLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         hoverLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         hoverLabel.textColor = .secondaryLabelColor
@@ -518,6 +532,8 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         appBars.heightConstraint?.isActive = true
         hoverLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         summaryLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
+        statsLabel.translatesAutoresizingMaskIntoConstraints = false
+        statsLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         uncategorizedStack.translatesAutoresizingMaskIntoConstraints = false
         uncategorizedStack.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
     }
