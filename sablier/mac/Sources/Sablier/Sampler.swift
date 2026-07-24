@@ -258,10 +258,11 @@ final class Sampler {
             return OSStatus(errAEEventNotPermitted)
         }
         var target = AEAddressDesc()
-        let created = data.withUnsafeBytes { raw -> OSStatus in
+        // AECreateDesc renvoie un OSErr (Int16), pas un OSStatus (Int32).
+        let created = data.withUnsafeBytes { raw -> OSErr in
             AECreateDesc(typeApplicationBundleID, raw.baseAddress, data.count, &target)
         }
-        guard created == noErr else { return created }
+        guard created == 0 else { return OSStatus(created) }
         defer { AEDisposeDesc(&target) }
         return AEDeterminePermissionToAutomateTarget(
             &target, typeWildCard, typeWildCard, askUserIfNeeded
