@@ -104,6 +104,14 @@ enum Categorizer {
         }
     }
 
+    /// Réécrit le fichier avec les règles par défaut de cette version.
+    /// (ensureRulesFile ne touche jamais un fichier existant : après une
+    /// mise à jour de Sablier, les nouvelles règles par défaut ne
+    /// s'appliquent qu'ici.)
+    static func restoreDefaultRules() {
+        try? defaultRulesText.write(to: rulesFileURL, atomically: true, encoding: .utf8)
+    }
+
     static func loadRules() -> [CategoryRule] {
         ensureRulesFile()
         guard let text = try? String(contentsOf: rulesFileURL, encoding: .utf8) else {

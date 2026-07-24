@@ -787,9 +787,40 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func openRules() {
-        Categorizer.ensureRulesFile()
-        NSWorkspace.shared.open(Categorizer.rulesFileURL)
-        Toast.shared.show("Modifie, enregistre, puis reviens : tout se reclasse")
+        let alert = NSAlert()
+        alert.messageText = "Règles de catégorisation"
+        alert.informativeText = "Ouvre le fichier pour l'éditer à la main, ou "
+            + "restaure les règles par défaut (utile après une mise à jour de "
+            + "Sablier : le fichier existant n'est jamais remplacé tout seul)."
+        alert.addButton(withTitle: "Ouvrir le fichier")
+        alert.addButton(withTitle: "Restaurer les règles par défaut...")
+        alert.addButton(withTitle: "Annuler")
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            Categorizer.ensureRulesFile()
+            NSWorkspace.shared.open(Categorizer.rulesFileURL)
+            Toast.shared.show("Modifie, enregistre, puis reviens : tout se reclasse")
+        case .alertSecondButtonReturn:
+            restoreDefaultRules()
+        default:
+            break
+        }
+    }
+
+    private func restoreDefaultRules() {
+        let confirm = NSAlert()
+        confirm.messageText = "Restaurer les règles par défaut ?"
+        confirm.informativeText = "Le fichier de règles actuel sera remplacé par "
+            + "les règles par défaut de cette version. Tes règles ajoutées à la "
+            + "main seront perdues. L'historique se reclasse ensuite tout seul."
+        confirm.alertStyle = .warning
+        confirm.addButton(withTitle: "Restaurer")
+        confirm.addButton(withTitle: "Annuler")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        Categorizer.restoreDefaultRules()
+        Toast.shared.show("Règles par défaut restaurées")
+        reload(keepSummary: true)
     }
 
     @objc private func exportCSV() {
