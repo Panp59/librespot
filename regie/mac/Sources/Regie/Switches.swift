@@ -128,11 +128,27 @@ enum Appearance {
             end tell
         end tell
         """
-        Shell.runAsync("/usr/bin/osascript", ["-e", source]) { status in
-            if status != 0 {
-                Toast.shared.show("Autorise Régie dans Confidentialité > Automatisation")
+        // L'Apple Event DOIT partir de Régie elle-même (pas d'un osascript
+        // enfant) pour que macOS attribue l'autorisation Automatisation à
+        // Régie et affiche la demande « Régie veut contrôler System Events ».
+        // NSAppleScript n'est sûr que sur le main thread : ce toggle est
+        // rare et déclenché par un clic, le blocage bref est acceptable.
+        let run = {
+            var error: NSDictionary?
+            NSAppleScript(source: source)?.executeAndReturnError(&error)
+            if let error {
+                let code = (error["NSAppleScriptErrorNumber"] as? Int) ?? 0
+                // -1743 : l'utilisateur n'a pas encore accordé l'automatisation.
+                Toast.shared.show(code == -1743
+                    ? "Autorise Régie : Réglages > Confidentialité > Automatisation > System Events"
+                    : "Changement d'apparence impossible (System Events)")
                 refreshCache()
             }
+        }
+        if Thread.isMainThread {
+            run()
+        } else {
+            DispatchQueue.main.async(execute: run)
         }
     }
 }
