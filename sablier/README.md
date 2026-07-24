@@ -58,7 +58,7 @@ xcode => Dev
 safari => Web
 ```
 
-Mettez les motifs les plus précis (domaines de sites, titres de documents) en haut, les plus généraux (noms d'apps comme `safari`, `brave`) en bas — sinon `brave => Web` attraperait tout le web avant vos règles par domaine. Enregistrez puis rouvrez le rapport : tout l'historique est reclassé.
+Mettez les motifs les plus précis (domaines de sites, titres de documents) en haut, les plus généraux (noms d'apps comme `safari`, `brave`) en bas, sinon `brave => Web` attraperait tout le web avant vos règles par domaine. Enregistrez puis rouvrez le rapport : tout l'historique est reclassé. Le plus simple reste toutefois de laisser la section « À catégoriser » du rapport écrire les règles pour vous.
 
 ## Bilan IA (optionnel)
 
