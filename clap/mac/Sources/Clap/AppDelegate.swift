@@ -555,7 +555,7 @@ extension AppDelegate: ControlServerDelegate {
                 guard let self else { return }
                 guard let window else {
                     self.suppressMic = false
-                    completion(.failure("aucune fenêtre ne correspond à « \(match) »"))
+                    completion(.failure(ControlError("aucune fenêtre ne correspond à « \(match) »")))
                     return
                 }
                 let scale = NSScreen.main?.backingScaleFactor ?? 2
