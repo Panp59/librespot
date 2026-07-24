@@ -373,6 +373,16 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
     private let summaryLabel = NSTextField(wrappingLabelWithString: "")
     private var summaryButton: NSButton?
 
+    // Assistant de catégorisation : les gros postes non classés à ranger.
+    private let uncategorizedTitle = NSTextField(labelWithString: "À catégoriser")
+    private let uncategorizedStack = NSStackView()
+    private var uncategorizedCandidates: [String] = []
+    private var ignoredPatterns = Set<String>()
+
+    private static let uncategorizedPlaceholder = "Classer dans…"
+    private static let uncategorizedNew = "Nouvelle catégorie…"
+    private static let uncategorizedIgnore = "Ignorer (pas une catégorie)"
+
     func show() {
         if window == nil {
             buildWindow()
@@ -453,6 +463,11 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         summaryLabel.font = .systemFont(ofSize: 13)
         summaryLabel.isSelectable = true
 
+        uncategorizedTitle.font = .systemFont(ofSize: 14, weight: .semibold)
+        uncategorizedStack.orientation = .vertical
+        uncategorizedStack.alignment = .leading
+        uncategorizedStack.spacing = 6
+
         let stack = FlippedStackView(views: [
             header,
             statsLabel,
@@ -462,6 +477,8 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             categoryBars,
             sectionTitle("Top apps et sites"),
             appBars,
+            uncategorizedTitle,
+            uncategorizedStack,
             sectionTitle("La semaine"),
             weekView,
             summaryLabel,
@@ -501,6 +518,8 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         appBars.heightConstraint?.isActive = true
         hoverLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         summaryLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
+        uncategorizedStack.translatesAutoresizingMaskIntoConstraints = false
+        uncategorizedStack.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
     }
 
     private func sectionTitle(_ title: String) -> NSTextField {
@@ -529,11 +548,12 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
             if !Sampler.accessibilityGranted {
                 stats += "    (titres de fenêtres désactivés : autorisation Accessibilité absente)"
             }
-            // Trop de temps non classé = il manque des règles.
+            // Trop de temps non classé : la section « À catégoriser » plus
+            // bas propose les gros postes à ranger en un clic.
             if let other = report.categories.first(where: { $0.name == Categorizer.defaultCategory }),
                other.duration > report.total * 0.25 {
                 stats += "    Astuce : \(formatDuration(other.duration)) en « Autre », "
-                    + "ajoute des règles (bouton Règles)"
+                    + "range-les dans « À catégoriser » ci-dessous"
             }
             statsLabel.stringValue = stats
         } else {
@@ -552,9 +572,166 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         }
 
         reloadWeek(reference: report.day, rules: report.rules)
+        reloadUncategorized(reference: report.day)
         if !keepSummary {
             summaryLabel.stringValue = ""
         }
+    }
+
+    // MARK: assistant de catégorisation
+
+    /// Les gros postes non classés des 7 derniers jours, triés par temps
+    /// décroissant (au-dessus de 2 min, pour ne pas s'occuper des broutilles).
+    /// Pour un site web on propose le domaine, sinon le nom de l'app.
+    private func reloadUncategorized(reference: Date) {
+        let calendar = Calendar.current
+        let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: reference))!
+        let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: reference))!
+        let rules = Categorizer.loadRules()
+
+        var byPattern: [String: TimeInterval] = [:]
+        for session in Store.shared.sessions(from: start, to: end) where session.duration > 0 {
+            let full = Categorizer.category(for: session, rules: rules)
+            let candidate: String
+            if session.host.isEmpty {
+                // App native : à ranger si elle n'a aucune règle.
+                guard full == Categorizer.defaultCategory else { continue }
+                candidate = session.app
+            } else {
+                // Navigateur : proposer le domaine SEULEMENT s'il n'a pas
+                // gagné de catégorie propre au-delà de ce que l'app seule
+                // donne (sinon un domaine dans le repli « Web » ne
+                // ressortirait jamais, et un onglet déjà classé par son
+                // titre ne doit pas polluer la liste).
+                let appOnly = WorkSession(
+                    start: session.start, end: session.end,
+                    bundle: session.bundle, app: session.app, title: "", host: ""
+                )
+                guard full == Categorizer.category(for: appOnly, rules: rules) else { continue }
+                candidate = session.host
+            }
+            guard !candidate.isEmpty, !ignoredPatterns.contains(candidate) else { continue }
+            byPattern[candidate, default: 0] += session.duration
+        }
+        let candidates = byPattern
+            .filter { $0.value >= 120 } // au moins 2 min sur la semaine
+            .sorted { $0.value > $1.value }
+            .prefix(12)
+
+        uncategorizedStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        uncategorizedCandidates = candidates.map(\.key)
+
+        if candidates.isEmpty {
+            uncategorizedTitle.isHidden = true
+            uncategorizedStack.isHidden = true
+            return
+        }
+        uncategorizedTitle.isHidden = false
+        uncategorizedStack.isHidden = false
+
+        let categories = availableCategories()
+        for (index, entry) in candidates.enumerated() {
+            let row = makeUncategorizedRow(
+                pattern: entry.key, duration: entry.value,
+                index: index, categories: categories
+            )
+            uncategorizedStack.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: uncategorizedStack.widthAnchor).isActive = true
+        }
+    }
+
+    /// Catégories déjà utilisées dans les règles (pour le menu déroulant).
+    private func availableCategories() -> [String] {
+        var set = Set(Categorizer.loadRules().map(\.category))
+        set.remove(Categorizer.defaultCategory)
+        return set.sorted()
+    }
+
+    private func makeUncategorizedRow(
+        pattern: String, duration: TimeInterval, index: Int, categories: [String]
+    ) -> NSView {
+        let dot = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
+        dot.wantsLayer = true
+        dot.layer?.backgroundColor = NSColor.systemGray.cgColor
+        dot.layer?.cornerRadius = 3
+        dot.widthAnchor.constraint(equalToConstant: 10).isActive = true
+        dot.heightAnchor.constraint(equalToConstant: 10).isActive = true
+
+        let label = NSTextField(labelWithString: pattern)
+        label.font = .systemFont(ofSize: 12)
+        label.lineBreakMode = .byTruncatingMiddle
+
+        let time = NSTextField(labelWithString: formatDuration(duration))
+        time.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        time.textColor = .secondaryLabelColor
+
+        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+        popup.addItem(withTitle: Self.uncategorizedPlaceholder)
+        popup.menu?.addItem(.separator())
+        for category in categories {
+            popup.addItem(withTitle: category)
+        }
+        if !categories.isEmpty {
+            popup.menu?.addItem(.separator())
+        }
+        popup.addItem(withTitle: Self.uncategorizedNew)
+        popup.addItem(withTitle: Self.uncategorizedIgnore)
+        popup.tag = index
+        popup.target = self
+        popup.action = #selector(categoryChosen(_:))
+
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let row = NSStackView(views: [dot, label, spacer, time, popup])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 10
+        row.translatesAutoresizingMaskIntoConstraints = false
+        // La largeur est contrainte APRÈS l'ajout à la pile (sinon la ligne
+        // et la pile n'ont pas encore d'ancêtre commun : exception).
+        popup.widthAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
+        return row
+    }
+
+    @objc private func categoryChosen(_ sender: NSPopUpButton) {
+        guard sender.tag >= 0, sender.tag < uncategorizedCandidates.count else { return }
+        let pattern = uncategorizedCandidates[sender.tag]
+        let title = sender.titleOfSelectedItem ?? ""
+
+        if title == Self.uncategorizedPlaceholder { return }
+        if title == Self.uncategorizedIgnore {
+            ignoredPatterns.insert(pattern)
+            reload(keepSummary: true)
+            return
+        }
+        var category = title
+        if title == Self.uncategorizedNew {
+            guard let name = promptCategoryName(), !name.isEmpty else {
+                sender.selectItem(at: 0)
+                return
+            }
+            category = name
+        }
+        Categorizer.addRule(pattern: pattern, category: category)
+        Toast.shared.show("Règle ajoutée : \(pattern) vers \(category)")
+        reload(keepSummary: true)
+    }
+
+    private func promptCategoryName() -> String? {
+        let alert = NSAlert()
+        alert.messageText = "Nouvelle catégorie"
+        alert.informativeText = "Nom de la catégorie pour ce poste."
+        alert.addButton(withTitle: "Créer")
+        alert.addButton(withTitle: "Annuler")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.placeholderString = "ex. Commercial"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return field.stringValue.trimmingCharacters(in: .whitespaces)
     }
 
     private func reloadWeek(reference: Date, rules: [CategoryRule]) {

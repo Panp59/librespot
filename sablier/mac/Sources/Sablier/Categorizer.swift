@@ -123,6 +123,28 @@ enum Categorizer {
         return rules
     }
 
+    /// Ajoute une règle `motif => catégorie`. Insérée AVANT les règles
+    /// existantes pour gagner au premier match (une règle par domaine doit
+    /// passer devant le repli par nom d'app comme `brave => Web`).
+    static func addRule(pattern: String, category: String) {
+        ensureRulesFile()
+        let url = rulesFileURL
+        var lines = (try? String(contentsOf: url, encoding: .utf8))?
+            .components(separatedBy: "\n") ?? []
+        let rule = "\(pattern) => \(category)"
+
+        func isRuleLine(_ line: String) -> Bool {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return !trimmed.hasPrefix("#") && trimmed.contains("=>")
+        }
+        if let first = lines.firstIndex(where: isRuleLine) {
+            lines.insert(rule, at: first)
+        } else {
+            lines.append(rule)
+        }
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
     static func category(for session: WorkSession, rules: [CategoryRule]) -> String {
         let haystack = "\(session.bundle) \(session.app) \(session.host) \(session.title)"
             .lowercased()
