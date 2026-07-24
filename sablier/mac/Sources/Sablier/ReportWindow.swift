@@ -620,23 +620,28 @@ final class ReportWindowController: NSObject, NSWindowDelegate {
         var byPattern: [String: TimeInterval] = [:]
         for session in Store.shared.sessions(from: start, to: end) where session.duration > 0 {
             let full = Categorizer.category(for: session, rules: rules)
+            // Ce que l'app seule donne, sans le domaine ni le titre : sert à
+            // savoir si le contenu (site, onglet) mérite sa propre catégorie.
+            let appOnly = WorkSession(
+                start: session.start, end: session.end,
+                bundle: session.bundle, app: session.app, title: "", host: ""
+            )
             let candidate: String
-            if session.host.isEmpty {
+            if !session.host.isEmpty {
+                // Navigateur : proposer le domaine seulement s'il n'a rien
+                // gagné au-delà de ce que l'app seule donne (sinon un domaine
+                // dans le repli « Web » ne ressortirait jamais, et un site
+                // déjà classé par son titre ne doit pas polluer la liste).
+                guard full == Categorizer.category(for: appOnly, rules: rules) else { continue }
+                candidate = session.host
+            } else if Sampler.splitsByTitle(session.bundle), !session.title.isEmpty {
+                // Terminal : chaque onglet a sa fonction, on propose son titre.
+                guard full == Categorizer.category(for: appOnly, rules: rules) else { continue }
+                candidate = session.title
+            } else {
                 // App native : à ranger si elle n'a aucune règle.
                 guard full == Categorizer.defaultCategory else { continue }
                 candidate = session.app
-            } else {
-                // Navigateur : proposer le domaine SEULEMENT s'il n'a pas
-                // gagné de catégorie propre au-delà de ce que l'app seule
-                // donne (sinon un domaine dans le repli « Web » ne
-                // ressortirait jamais, et un onglet déjà classé par son
-                // titre ne doit pas polluer la liste).
-                let appOnly = WorkSession(
-                    start: session.start, end: session.end,
-                    bundle: session.bundle, app: session.app, title: "", host: ""
-                )
-                guard full == Categorizer.category(for: appOnly, rules: rules) else { continue }
-                candidate = session.host
             }
             guard !candidate.isEmpty, !ignoredPatterns.contains(candidate) else { continue }
             byPattern[candidate, default: 0] += session.duration

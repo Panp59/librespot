@@ -16,9 +16,15 @@ struct WorkSession {
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
 
-    /// Nom affiché : le site pour une session de navigateur, sinon l'app.
-    /// Sans ça, tout le web s'effondrerait sur une seule ligne "Brave Browser".
-    var displayName: String { host.isEmpty ? app : host }
+    /// Nom affiché : le domaine pour un navigateur, le titre d'onglet pour
+    /// un terminal (chaque onglet a sa fonction), sinon le nom de l'app.
+    /// Sans ça, tout le web s'effondrerait sur "Brave Browser" et tous les
+    /// onglets de terminal sur "Ghostty".
+    var displayName: String {
+        if !host.isEmpty { return host }
+        if Sampler.splitsByTitle(bundle), !title.isEmpty { return title }
+        return app
+    }
 }
 
 /// Persistance SQLite, tout en local dans Application Support.

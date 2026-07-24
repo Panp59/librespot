@@ -292,6 +292,24 @@ final class Sampler {
         browserScripts.keys.contains(bundleID)
     }
 
+    /// Apps dont on distingue les fenêtres par leur TITRE plutôt que de tout
+    /// empiler sous le nom de l'app : les terminaux surtout, où chaque onglet
+    /// porte une fonction (l'utilisateur les nomme). Même principe que le
+    /// découpage des navigateurs par domaine, mais via le titre de fenêtre
+    /// (nécessite l'autorisation Accessibilité).
+    static let splitByTitleBundleIDs: Set<String> = [
+        "com.mitchellh.ghostty",    // Ghostty
+        "com.googlecode.iterm2",    // iTerm2
+        "com.apple.Terminal",       // Terminal
+        "org.alacritty",            // Alacritty
+        "com.github.wez.wezterm",   // WezTerm
+        "net.kovidgoyal.kitty",     // kitty
+    ]
+
+    static func splitsByTitle(_ bundleID: String) -> Bool {
+        splitByTitleBundleIDs.contains(bundleID)
+    }
+
     /// Domaine de l'onglet actif d'un navigateur (ex. "mail.google.com"),
     /// ou "" si l'app n'est pas un navigateur connu, si l'autorisation
     /// Automatisation manque, ou s'il n'y a pas d'onglet ouvert. Le préfixe
