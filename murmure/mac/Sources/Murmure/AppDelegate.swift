@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let meetingsItem = NSMenuItem(
             title: "Réunions enregistrées…",
-            action: #selector(showMeetingsWindow), keyEquivalent: "l"
+            action: #selector(showMeetingsWindow), keyEquivalent: "m"
         )
         menu.addItem(meetingsItem)
         menu.addItem(.separator())
@@ -355,8 +355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HHmm"
+        let formatter = MeetingRecording.folderDateFormatter()
         let dir = recordingsDir.appendingPathComponent(formatter.string(from: Date()), isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -431,6 +430,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 systemOffset = systemStart - reference
             }
 
+            // Conserve le calage des pistes et les notes AVANT de transcrire :
+            // si la transcription échoue (veille, backend coupé), la relance
+            // depuis « Réunions enregistrées » les retrouvera.
+            MeetingRecording.writeMeta(
+                micOffset: micOffset, systemOffset: systemOffset,
+                notes: notes, in: dir
+            )
+
             self.hud.show("Transcription de la réunion en cours…", style: .working)
             self.backend.processMeeting(
                 micURL: micResult?.url,
@@ -493,8 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showMeetingsWindow() {
         if meetingsWindow == nil {
             meetingsWindow = MeetingsWindowController(
-                recordingsDir: recordingsDir,
-                backend: backend
+                recordingsDir: recordingsDir
             ) { [weak self] recording, title, finished in
                 self?.reprocess(recording, title: title, completion: finished)
             }
@@ -524,9 +530,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             micURL: recording.micURL,
             systemURL: recording.systemURL,
             mode: recording.mode,
-            title: title
+            title: title,
+            micOffset: recording.micOffset,
+            systemOffset: recording.systemOffset,
+            notes: recording.notes
         ) { [weak self] result in
-            guard let self else { return }
+            guard let self else { completion(false); return }
             self.hud.hide()
             switch result {
             case .success(let response):

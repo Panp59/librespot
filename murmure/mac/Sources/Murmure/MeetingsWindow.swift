@@ -7,24 +7,23 @@ import AppKit
 final class MeetingsWindowController: NSObject, NSWindowDelegate,
                                       NSTableViewDataSource, NSTableViewDelegate {
     private let recordingsDir: URL
-    private let backend: BackendClient
     /// Lance une retranscription ; le contrôleur parent gère le HUD et les
-    /// alertes, puis rappelle `onFinished` pour rafraîchir la liste.
+    /// alertes, puis rappelle la complétion pour rafraîchir la liste.
     private let reprocess: (MeetingRecording, String, @escaping (Bool) -> Void) -> Void
 
     private var window: NSWindow?
     private var recordings: [MeetingRecording] = []
     private let tableView = NSTableView()
     private let statusLabel = NSTextField(labelWithString: "")
-    private var busyRow: Int?
+    /// Enregistrement en cours de traitement, identifié par son DOSSIER et
+    /// non par un indice de ligne : la liste peut être retriée entre-temps.
+    private var busyDirectory: URL?
 
     init(
         recordingsDir: URL,
-        backend: BackendClient,
         reprocess: @escaping (MeetingRecording, String, @escaping (Bool) -> Void) -> Void
     ) {
         self.recordingsDir = recordingsDir
-        self.backend = backend
         self.reprocess = reprocess
         super.init()
     }
@@ -52,18 +51,21 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
         window.center()
         self.window = window
 
-        let columns: [(String, String, CGFloat)] = [
-            ("date", "Date", 150),
-            ("type", "Type", 90),
-            ("taille", "Audio", 80),
-            ("etat", "Transcription", 130),
-            ("actions", "", 300),
+        let columns: [(String, String, CGFloat, CGFloat)] = [
+            ("date", "Date", 150, 220),
+            ("type", "Type", 90, 120),
+            ("taille", "Audio", 80, 110),
+            ("etat", "Transcription", 120, 160),
+            // Les quatre boutons d'action ont besoin de place, sinon
+            // « Supprimer » est rogné quand la fenêtre rétrécit.
+            ("actions", "", 310, 10_000),
         ]
-        for (id, title, width) in columns {
+        for (id, title, width, maxWidth) in columns {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             column.title = title
             column.width = width
-            column.minWidth = 60
+            column.minWidth = id == "actions" ? 310 : 60
+            column.maxWidth = maxWidth
             tableView.addTableColumn(column)
         }
         tableView.dataSource = self
@@ -71,6 +73,8 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
         tableView.rowHeight = 30
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.allowsColumnSelection = false
+        // Une NSTableView créée par code n'a pas d'en-tête par défaut.
+        tableView.headerView = NSTableHeaderView()
 
         let scroll = NSScrollView()
         scroll.documentView = tableView
@@ -85,11 +89,18 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
         let folderButton = NSButton(
             title: "Ouvrir le dossier", target: self, action: #selector(openFolderClicked)
         )
+        // L'espaceur doit absorber tout le mou pour pousser les boutons à
+        // droite : priorités au plus bas, et distribution .fill (par défaut
+        // le stack empile tout à gauche).
         let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        spacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+        spacer.setContentCompressionResistancePriority(
+            NSLayoutConstraint.Priority(1), for: .horizontal
+        )
         let bar = NSStackView(views: [statusLabel, spacer, folderButton, refreshButton])
         bar.orientation = .horizontal
         bar.alignment = .centerY
+        bar.distribution = .fill
         bar.spacing = 8
         bar.translatesAutoresizingMaskIntoConstraints = false
 
@@ -114,7 +125,9 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
         recordings = MeetingRecording.all(in: recordingsDir)
         tableView.reloadData()
         let pending = recordings.filter { !$0.isTranscribed }.count
-        if recordings.isEmpty {
+        if busyDirectory != nil {
+            statusLabel.stringValue = "Transcription en cours, patiente…"
+        } else if recordings.isEmpty {
             statusLabel.stringValue = "Aucun enregistrement."
         } else if pending > 0 {
             statusLabel.stringValue = "\(recordings.count) enregistrement(s), "
@@ -151,7 +164,7 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
                 fromByteCount: recording.sizeBytes, countStyle: .file
             )
         case "etat":
-            if busyRow == row {
+            if busyDirectory == recording.directory {
                 text = "En cours…"
             } else {
                 text = recording.isTranscribed ? "Transcrite" : "À faire"
@@ -163,33 +176,45 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 12)
         label.lineBreakMode = .byTruncatingTail
-        if columnID == "etat", busyRow != row, !recording.isTranscribed {
+        if columnID == "etat", busyDirectory != recording.directory, !recording.isTranscribed {
             label.textColor = .systemOrange
         }
-        return label
+        // NSTableView étire la vue sur toute la cellule : un NSTextField seul
+        // collerait en haut à gauche, désaligné avec les boutons d'action.
+        let cell = NSStackView(views: [label])
+        cell.orientation = .horizontal
+        cell.alignment = .centerY
+        cell.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
+        return cell
     }
 
     private func actionsView(for row: Int, recording: MeetingRecording) -> NSView {
         var buttons: [NSView] = []
+        // Pendant un traitement, on gèle les actions destructrices ou
+        // concurrentes : le backend ne traite qu'une réunion à la fois, et
+        // supprimer l'audio en pleine transcription serait fatal.
+        let idle = busyDirectory == nil
 
         if recording.documentToOpen != nil {
             buttons.append(makeButton("Ouvrir", row: row, action: #selector(openClicked(_:))))
         }
         let redoTitle = recording.isTranscribed ? "Refaire" : "Transcrire"
         let redo = makeButton(redoTitle, row: row, action: #selector(reprocessClicked(_:)))
-        redo.isEnabled = busyRow == nil
+        redo.isEnabled = idle
         if !recording.isTranscribed {
-            redo.keyEquivalent = ""
             redo.bezelColor = .controlAccentColor
         }
         buttons.append(redo)
         buttons.append(makeButton("Finder", row: row, action: #selector(revealClicked(_:))))
-        buttons.append(makeButton("Supprimer", row: row, action: #selector(deleteClicked(_:))))
+        let delete = makeButton("Supprimer", row: row, action: #selector(deleteClicked(_:)))
+        delete.isEnabled = idle
+        buttons.append(delete)
 
         let stack = NSStackView(views: buttons)
         stack.orientation = .horizontal
         stack.spacing = 6
         stack.alignment = .centerY
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 6, bottom: 0, right: 6)
         return stack
     }
 
@@ -225,20 +250,20 @@ final class MeetingsWindowController: NSObject, NSWindowDelegate,
     }
 
     @objc private func reprocessClicked(_ sender: NSButton) {
-        guard busyRow == nil, let recording = recording(for: sender) else { return }
+        guard busyDirectory == nil, let recording = recording(for: sender) else { return }
         guard let title = askTitle(default: defaultTitle(for: recording)) else { return }
 
-        busyRow = sender.tag
+        busyDirectory = recording.directory
         tableView.reloadData()
         reprocess(recording, title) { [weak self] _ in
             guard let self else { return }
-            self.busyRow = nil
+            self.busyDirectory = nil
             self.reload()
         }
     }
 
     @objc private func deleteClicked(_ sender: NSButton) {
-        guard let recording = recording(for: sender) else { return }
+        guard busyDirectory == nil, let recording = recording(for: sender) else { return }
         let alert = NSAlert()
         alert.messageText = "Supprimer cet enregistrement ?"
         alert.informativeText = "L'audio sera placé dans la corbeille. "

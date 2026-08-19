@@ -13,6 +13,12 @@ struct MeetingRecording {
     let hasSystem: Bool
     /// Dossier de sortie de la transcription, si elle a déjà eu lieu.
     let outputDir: URL?
+    /// Décalages des pistes et notes prises pendant la réunion, relus depuis
+    /// meta.json : sans eux, une retranscription désaligne les interlocuteurs
+    /// d'une réunion Teams et perd les notes qui guident le compte-rendu.
+    let micOffset: Double
+    let systemOffset: Double
+    let notes: String
 
     /// Réunion Teams/visio : une piste système en plus du micro.
     var mode: String { hasSystem ? "remote" : "in_person" }
@@ -50,6 +56,17 @@ struct MeetingRecording {
     }
 
     static let linkFileName = "sortie.txt"
+    static let metaFileName = "meta.json"
+
+    /// Format de date des dossiers, côté app comme côté backend.
+    /// Locale POSIX obligatoire : sous un calendrier régional non grégorien,
+    /// "yyyy" produirait une autre année et les noms deviendraient illisibles.
+    static func folderDateFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HHmm"
+        return formatter
+    }
 
     /// Mémorise le dossier de sortie produit par le backend.
     static func writeOutputLink(_ outputDir: String, in directory: URL) {
@@ -57,6 +74,20 @@ struct MeetingRecording {
             to: directory.appendingPathComponent(linkFileName),
             atomically: true, encoding: .utf8
         )
+    }
+
+    /// Conserve ce qui serait perdu à la retranscription : le calage des
+    /// pistes et les notes prises pendant la réunion.
+    static func writeMeta(
+        micOffset: Double, systemOffset: Double, notes: String, in directory: URL
+    ) {
+        let meta: [String: Any] = [
+            "mic_offset": micOffset,
+            "system_offset": systemOffset,
+            "notes": notes,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: meta) else { return }
+        try? data.write(to: directory.appendingPathComponent(metaFileName))
     }
 
     /// Dossier des transcriptions produites par le backend.
@@ -68,15 +99,34 @@ struct MeetingRecording {
     }
 
     /// Retrouve une transcription existante pour un enregistrement nommé
-    /// "yyyy-MM-dd HHmm" : le backend nomme ses dossiers de sortie
-    /// "yyyy-MM-dd HHmm <titre>", donc le préfixe suffit. Utile pour les
-    /// réunions transcrites avant l'introduction du fichier de lien.
+    /// "yyyy-MM-dd HHmm". Attention : le backend date ses dossiers de sortie
+    /// de la FIN de la transcription, pas du début de l'enregistrement. On
+    /// cherche donc la première sortie postérieure au début (dans les 24 h),
+    /// et non un préfixe identique. Utile pour les réunions transcrites avant
+    /// l'introduction du fichier de lien.
     private static func findExistingOutput(matching folderName: String) -> URL? {
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(
-            at: outputRoot, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { return nil }
-        return entries.first { $0.lastPathComponent.hasPrefix(folderName) }
+        let parser = folderDateFormatter()
+        guard let start = parser.date(from: folderName),
+              let entries = try? fm.contentsOfDirectory(
+                  at: outputRoot,
+                  includingPropertiesForKeys: [.isDirectoryKey],
+                  options: [.skipsHiddenFiles]
+              )
+        else { return nil }
+
+        return entries.compactMap { url -> (URL, Date)? in
+            let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            guard isDir else { return nil }
+            let name = url.lastPathComponent
+            guard name.count >= 15,
+                  let date = parser.date(from: String(name.prefix(15))),
+                  date >= start,
+                  date.timeIntervalSince(start) < 86_400
+            else { return nil }
+            return (url, date)
+        }
+        .min { $0.1 < $1.1 }?.0
     }
 
     /// Tous les enregistrements, du plus récent au plus ancien.
@@ -86,8 +136,7 @@ struct MeetingRecording {
             at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HHmm"
+        let formatter = folderDateFormatter()
 
         var result: [MeetingRecording] = []
         for entry in entries {
@@ -114,9 +163,21 @@ struct MeetingRecording {
                 outputDir = findExistingOutput(matching: entry.lastPathComponent)
             }
 
+            // Calage des pistes et notes, si l'enregistrement les a conservés.
+            var micOffset = 0.0
+            var systemOffset = 0.0
+            var notes = ""
+            if let data = try? Data(contentsOf: entry.appendingPathComponent(metaFileName)),
+               let meta = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                micOffset = meta["mic_offset"] as? Double ?? 0
+                systemOffset = meta["system_offset"] as? Double ?? 0
+                notes = meta["notes"] as? String ?? ""
+            }
+
             result.append(MeetingRecording(
                 directory: entry, date: date,
-                hasMic: hasMic, hasSystem: hasSystem, outputDir: outputDir
+                hasMic: hasMic, hasSystem: hasSystem, outputDir: outputDir,
+                micOffset: micOffset, systemOffset: systemOffset, notes: notes
             ))
         }
         return result.sorted { $0.date > $1.date }
