@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var meetingMode: String? // "in_person" | "remote", nil = pas de réunion
     private var meetingDir: URL?
+    private var meetingsWindow: MeetingsWindowController?
 
     // Annulation de dictée (touche Échap pendant l'enregistrement).
     private var escapeMonitors: [Any] = []
@@ -124,6 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         notesMenuItem.isHidden = true
         menu.addItem(notesMenuItem)
+
+        let meetingsItem = NSMenuItem(
+            title: "Réunions enregistrées…",
+            action: #selector(showMeetingsWindow), keyEquivalent: "l"
+        )
+        menu.addItem(meetingsItem)
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(
@@ -437,6 +444,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.hud.hide()
                 switch result {
                 case .success(let response):
+                    // Mémorise où est parti le résultat, pour que la fenêtre
+                    // « Réunions enregistrées » sache que c'est fait.
+                    MeetingRecording.writeOutputLink(response.outputDir, in: dir)
                     // Ouvre le compte-rendu s'il a pu être généré (Ollama),
                     // sinon la transcription complète.
                     let md = URL(fileURLWithPath: response.summaryPath ?? response.markdownPath)
@@ -474,6 +484,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
         let title = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return title.isEmpty ? "Réunion" : title
+    }
+
+    /// Fenêtre de gestion des réunions : liste des enregistrements, état de
+    /// leur transcription, et relance. Indispensable quand la transcription
+    /// n'a pas pu se faire (Mac en veille, écran fermé) : l'audio est
+    /// conservé, on relance quand on veut.
+    @objc private func showMeetingsWindow() {
+        if meetingsWindow == nil {
+            meetingsWindow = MeetingsWindowController(
+                recordingsDir: recordingsDir,
+                backend: backend
+            ) { [weak self] recording, title, finished in
+                self?.reprocess(recording, title: title, completion: finished)
+            }
+        }
+        meetingsWindow?.show()
+    }
+
+    private func reprocess(
+        _ recording: MeetingRecording, title: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard meetingMode == nil else {
+            showAlert(title: "Réunion en cours",
+                      message: "Termine la réunion en cours avant d'en retranscrire une autre.")
+            completion(false)
+            return
+        }
+        guard backendHealthy else {
+            showAlert(title: "Backend hors ligne",
+                      message: "Démarre le backend (menu Murmure) avant de retranscrire.")
+            completion(false)
+            return
+        }
+
+        hud.show("Retranscription en cours…", style: .working)
+        backend.processMeeting(
+            micURL: recording.micURL,
+            systemURL: recording.systemURL,
+            mode: recording.mode,
+            title: title
+        ) { [weak self] result in
+            guard let self else { return }
+            self.hud.hide()
+            switch result {
+            case .success(let response):
+                MeetingRecording.writeOutputLink(response.outputDir, in: recording.directory)
+                let md = URL(fileURLWithPath: response.summaryPath ?? response.markdownPath)
+                NSWorkspace.shared.open(md)
+                completion(true)
+            case .failure(let error):
+                self.showAlert(
+                    title: "Échec de la transcription",
+                    message: "\(error.localizedDescription)\n\nLes fichiers audio restent dans :\n\(recording.directory.path)"
+                )
+                completion(false)
+            }
+        }
     }
 
     // MARK: - Backend

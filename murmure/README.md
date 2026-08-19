@@ -151,6 +151,12 @@ Après avoir accordé Accessibilité, quitte et relance l'app.
   compte-rendu Markdown s'ouvre tout seul.
 - **Réunion Teams/visio** : menu 🎙️ → « Réunion Teams/visio : démarrer ».
   Porte un casque (sinon ta voix sera aussi captée dans l'audio système).
+- **Réunions enregistrées** : menu 🎙️ → « Réunions enregistrées… » ouvre la
+  liste de tous les enregistrements avec l'état de leur transcription, et les
+  actions par ligne : Ouvrir le compte-rendu, Transcrire ou Refaire, Finder,
+  Supprimer. C'est là qu'on rattrape une transcription qui n'a pas pu se faire
+  (Mac mis en veille, écran fermé, backend arrêté) : l'audio est conservé, on
+  relance quand on veut.
 - **Backend** : le menu affiche son état ; « Démarrer le backend » le lance
   pour toi (il te demandera où se trouve le dossier `backend` la première fois).
 
